@@ -11,7 +11,8 @@ Usage: `./loner.py [options] <model_json> <data_file>`
 For help do: `./loner.py -h`
 
 model_json example:
-```{
+```
+{
   "n_hidden": 384,
   "n_latent": 64,
   "n_layers": 1,
@@ -20,6 +21,7 @@ model_json example:
   "dropout_rate": 0.2,
   "learning_rate": 0.001,
   "valid_pct": 0.10
-}```
+}
+```
 
 Data file can be h5ad or loom file format.
