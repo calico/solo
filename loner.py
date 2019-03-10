@@ -108,15 +108,10 @@ def main():
         if options.gpu:
             vae.cuda()
 
-        # calico-specific
+        # copy latent representation
         latent_file = '%s/latent.npy' % os.path.split(options.seed)[0]
         if os.path.isfile(latent_file):
             shutil.copy(latent_file, '%s/latent.npy' % options.out_dir)
-        else:
-            # rest of world
-            latent_file = '%s/latent.csv' % os.path.split(options.seed)[0]
-            if os.path.isfile(latent_file):
-                shutil.copy(latent_file, '%s/latent.npy' % options.out_dir)
 
     else:
         stopping_params['early_stopping_metric'] = 'll'
@@ -139,11 +134,13 @@ def main():
         # save VAE
         torch.save(vae.state_dict(), '%s/vae.pt' % options.out_dir)
 
-        # save latent
+        # save latent representation
         utrainer.use_cuda = False
         utrainer.model.cpu()
-        utrainer.get_all_latent_and_imputed_values(save_latent=True,
-                                                   filename_latent='%s/latent.csv' % options.out_dir)
+        full_posterior = utrainer.create_posterior(utrainer.model, scvi_data,
+                                                   indices=np.arange(len(scvi_data)))
+        latent, _, _ = full_posterior.sequential().get_latent()
+        np.save('%s/latent.npy' % options.out_dir, latent.astype('float32'))
 
         if options.gpu:
             utrainer.use_cuda = True
