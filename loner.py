@@ -13,10 +13,8 @@ import seaborn as sns
 
 from scvi.dataset import AnnDataset, LoomDataset, GeneExpressionDataset
 from scvi.models import Classifier, VAE
-from scvi.inference import UnsupervisedTrainer, Trainer
-from scvi.inference.annotation import AnnotationPosterior
+from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
-from torch.nn import functional as F
 
 '''
 loner.py
@@ -33,8 +31,7 @@ def main():
     parser.add_option('-d', dest='doublet_depth',
                       default=1., type='float',
                       help='Depth multiplier for a doublet relative to the \
-                      average of its \
-                      constituents[Default: % default]')
+                      average of its constituents [Default: % default]')
     parser.add_option('-g', dest='gpu',
                       default=False, action='store_true',
                       help='Run on GPU [Default: %default]')
@@ -135,16 +132,11 @@ def main():
         torch.save(vae.state_dict(), '%s/vae.pt' % options.out_dir)
 
         # save latent representation
-        utrainer.use_cuda = False
-        utrainer.model.cpu()
         full_posterior = utrainer.create_posterior(utrainer.model, scvi_data,
                                                    indices=np.arange(len(scvi_data)))
         latent, _, _ = full_posterior.sequential().get_latent()
         np.save('%s/latent.npy' % options.out_dir, latent.astype('float32'))
 
-        if options.gpu:
-            utrainer.use_cuda = True
-            utrainer.model.cuda()
 
     ##################################################
     # simulate doublets
@@ -207,7 +199,7 @@ def main():
                                  train_size=(1. - valid_pct),
                                  frequency=2, metrics_to_monitor=['accuracy'],
                                  use_cuda=options.gpu, verbose=True,
-                                 sampling_model=vae,
+                                 sampling_model=vae, sampling_zl=True,
                                  early_stopping_kwargs=stopping_params)
 
     # initial
@@ -215,7 +207,7 @@ def main():
 
     # drop learning rate and continue
     strainer.early_stopping.wait = 0
-    strainer.train(n_epochs=250, lr=0.1 * learning_rate)
+    strainer.train(n_epochs=300, lr=0.1 * learning_rate)
 
     ##################################################
     # post-processing
@@ -289,114 +281,6 @@ def main():
     _, order_pred = strainer.compute_predictions()
     np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
     np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
-
-
-class ClassifierTrainer(Trainer):
-    r"""The ClassifierInference class for training a classifier either on the
-        raw data or on top of the latent
-        space of another model (VAE, VAEC, SCANVI).
-
-    Args:
-        :model: A model instance from class ``VAE``, ``VAEC``, ``SCANVI``
-        :gene_dataset: A gene_dataset instance like ``CortexDataset()``
-        :train_size: The train size, either a float between 0 and 1 or and
-                     integer for the number of training samples
-            to use Default: ``0.8``.
-        :\**kwargs: Other keywords arguments from the general Trainer class.
-
-
-    Examples:
-        >>> gene_dataset = CortexDataset()
-        >>> vae = VAE(gene_dataset.nb_genes,
-            n_batch=gene_dataset.n_batches * False,
-            ... n_labels=gene_dataset.n_labels)
-
-        >>> classifier = Classifier(vae.n_latent,
-                                    n_labels=cortex_dataset.n_labels)
-        >>> trainer = ClassifierTrainer(classifier, gene_dataset,
-                                        sampling_model=vae, train_size=0.5)
-        >>> trainer.train(n_epochs=20, lr=1e-3)
-        >>> trainer.test_set.accuracy()
-    """
-
-    def __init__(self, *args, train_size=0.8, sampling_model=None,
-                 use_cuda=True, **kwargs):
-        self.sampling_model = sampling_model
-        super().__init__(*args, use_cuda=use_cuda, **kwargs)
-        self.train_set, self.test_set = self.train_test(self.model,
-                                                        self.gene_dataset,
-                                                        train_size,
-                                                        type_class=AnnotationPosterior)
-        self.train_set.to_monitor = ['accuracy']
-        self.test_set.to_monitor = ['accuracy']
-
-    @property
-    def posteriors_loop(self):
-        return ['train_set']
-
-    def __setattr__(self, key, value):
-        if key in ["train_set", "test_set"]:
-            value.sampling_model = self.sampling_model
-        super().__setattr__(key, value)
-
-    def loss(self, tensors_labelled):
-        x, _, _, _, labels_train = tensors_labelled
-        if self.sampling_model:
-            if hasattr(self.sampling_model, 'classify'):
-                return F.cross_entropy(self.sampling_model.classify(x), labels_train.view(-1))
-            else:
-                if self.sampling_model.log_variational:
-                    x = torch.log(1 + x)
-                # x = self.sampling_model.z_encoder(x)[0]
-                z = self.sampling_model.z_encoder(x)[0]
-                l = self.sampling_model.l_encoder(x)[0]
-                x = torch.cat((z,l), dim=-1)
-        return F.cross_entropy(self.model(x), labels_train.view(-1))
-
-    @torch.no_grad()
-    def compute_predictions(self, soft=False):
-        '''
-        :return: the true labels and the predicted labels
-        :rtype: 2-tuple of :py:class:`numpy.int32`
-        '''
-        model, cls = (self.sampling_model, self.model) if hasattr(self, 'sampling_model') else (self.model, None)
-        full_set = self.create_posterior(type_class=AnnotationPosterior)
-        full_set.sampling_model = model
-        return compute_predictions(model, full_set, classifier=cls, soft=soft)
-
-
-@torch.no_grad()
-def compute_predictions(model, data_loader, classifier=None, soft=False):
-    all_y_pred = []
-    all_y = []
-
-    for i_batch, tensors in enumerate(data_loader):
-        sample_batch, _, _, _, labels = tensors
-        all_y += [labels.view(-1).cpu()]
-
-        if hasattr(model, 'classify'):
-            y_pred = model.classify(sample_batch)
-        elif classifier is not None:
-            # Then we use the specified classifier
-            if model is not None:
-                if model.log_variational:
-                    sample_batch = torch.log(1 + sample_batch)
-                # sample_batch, _, _ = model.z_encoder(sample_batch)
-                z = model.z_encoder(sample_batch)[0]
-                l = model.l_encoder(sample_batch)[0]
-                sample_batch = torch.cat((z,l), dim=-1)
-            y_pred = classifier(sample_batch)
-        else:  # The model is the raw classifier
-            y_pred = model(sample_batch)
-
-        if not soft:
-            y_pred = y_pred.argmax(dim=-1)
-
-        all_y_pred += [y_pred.cpu()]
-
-    all_y_pred = np.array(torch.cat(all_y_pred))
-    all_y = np.array(torch.cat(all_y))
-    return all_y, all_y_pred
 
 
 ################################################################################
