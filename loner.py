@@ -57,7 +57,7 @@ def main():
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
                       default=None, help='Seed VAE model parameters')
-    parser.add_option('-k', dest='known_doublets',
+    parser.add_option('-kt', dest='known_doublets',
                       help='Experimentally defined doublets tsv file',
                       type=read_tsv)
     (options, args) = parser.parse_args()
@@ -82,6 +82,18 @@ def main():
         scvi_data = AnnDataset(data_file)
     else:
         print('Unrecognized file format')
+
+    if options.known_doublets is not None:
+        kd = options.known_doublets
+        doublet_bm = scvi_data.obs.index.isin(kd[kd['doublet']].index)
+        singlet_bm = scvi_data.obs.index.isin(kd[~kd['doublet']].index)
+        known_doublet_data = make_gene_expression_dataset(
+                                    scvi_data.X[doublet_bm],
+                                    scvi_data.gene_names)
+        scvi_data = make_gene_expression_dataset(scvi_data.X[singlet_bm],
+                                                 scvi_data.gene_names)
+    else:
+        known_doublet_data = None
 
     num_cells, num_genes = scvi_data.X.shape
 
@@ -157,18 +169,6 @@ def main():
 
     ##################################################
     # simulate doublets
-
-    if options.known_doublets is not None:
-        kd = options.known_doublets
-        doublet_bm = scvi_data.obs.index.isin(kd[kd['doublet']].index)
-        singlet_bm = scvi_data.obs.index.isin(kd[~kd['doublet']].index)
-        known_doublet_data = make_gene_expression_dataset(
-                                    scvi_data.X[doublet_bm],
-                                    scvi_data.gene_names)
-        scvi_data = make_gene_expression_dataset(scvi_data.X[singlet_bm],
-                                                 scvi_data.gene_names)
-    else:
-        known_doublet_data = None
 
     cell_depths = scvi_data.X.sum(axis=1)
     num_doublets = int(options.doublet_ratio * num_cells)
