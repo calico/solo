@@ -5,6 +5,7 @@ import os
 import shutil
 
 import numpy as np
+import pandas as pd
 from scipy.stats import multinomial
 from sklearn.metrics import roc_auc_score, roc_curve
 
@@ -22,6 +23,19 @@ loner.py
 Simulate doublets, train a VAE, and then a classifier on top.
 '''
 
+
+def read_tsv(path):
+    return pd.read_csv(path, sep="\t")
+
+
+def make_gene_expression_dataset(data, gene_names):
+    means, var = GeneExpressionDataset.library_size(data)
+    data_length = data.X.shape[0]
+    batch = np.zeros((data_length, 1), dtype='uint32')
+    labels = np.ones((data_length, 1), dtype='uint32')
+    return GeneExpressionDataset(data, local_means=means, local_vars=var,
+                                 batch_indices=batch, labels=labels,
+                                 gene_names=gene_names)
 ###############################################################################
 # main
 ###############################################################################
@@ -43,6 +57,9 @@ def main():
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
                       default=None, help='Seed VAE model parameters')
+    parser.add_option('-k', dest='known_doublets',
+                      help='Experimentally defined doublets tsv file',
+                      type=read_tsv)
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -62,7 +79,7 @@ def main():
     if data_ext == '.loom':
         scvi_data = LoomDataset(data_file, save_path='./')
     elif data_ext == '.h5ad':
-        scvi_data = AnnDataset(data_file, save_path='./')
+        scvi_data = AnnDataset(data_file)
     else:
         print('Unrecognized file format')
 
@@ -141,10 +158,26 @@ def main():
     ##################################################
     # simulate doublets
 
+    if options.known_doublets is not None:
+        kd = options.known_doublets
+        doublet_bm = scvi_data.obs.index.isin(kd[kd['doublet']].index)
+        singlet_bm = scvi_data.obs.index.isin(kd[~kd['doublet']].index)
+        known_doublet_data = make_gene_expression_dataset(
+                                    scvi_data.X[doublet_bm],
+                                    scvi_data.gene_names)
+        scvi_data = make_gene_expression_dataset(scvi_data.X[singlet_bm],
+                                                 scvi_data.gene_names)
+    else:
+        known_doublet_data = None
+
     cell_depths = scvi_data.X.sum(axis=1)
     num_doublets = int(options.doublet_ratio * num_cells)
-    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
 
+    if known_doublet_data is not None:
+        num_doublets -= known_doublet_data.X.shape[0]
+        # make sure we are making a non negative amount of doublets
+        assert num_doublets >= 0
+    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
@@ -163,15 +196,12 @@ def main():
         X_doublets[di, :] = multinomial.rvs(n=dd, p=dp)
 
     # merge datasets
-    doublet_means, doublet_var = GeneExpressionDataset.library_size(X_doublets)
-    doublet_batch = np.zeros((num_doublets, 1), dtype='uint32')
-    doublet_labels = np.ones((num_doublets, 1), dtype='uint32')
-    doublet_data = GeneExpressionDataset(X_doublets, local_means=doublet_means,
-                                         local_vars=doublet_var,
-                                         batch_indices=doublet_batch,
-                                         labels=doublet_labels,
-                                         gene_names=scvi_data.gene_names)
+    # we can maybe up sample the known doublets
+    if known_doublet_data is not None:
+        X_doublets = np.vstack([known_doublet_data.X, X_doublets])
 
+    doublet_data = make_gene_expression_dataset(X_doublets,
+                                                scvi_data.gene_names)
     # manually set labels to 1
     doublet_data.labels += 1
     doublet_data.n_labels = 2
