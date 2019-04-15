@@ -5,6 +5,7 @@ import os
 import shutil
 
 import numpy as np
+import pandas as pd
 from scipy.stats import multinomial
 from sklearn.metrics import roc_auc_score, roc_curve
 
@@ -22,9 +23,20 @@ loner.py
 Simulate doublets, train a VAE, and then a classifier on top.
 '''
 
+
+def make_gene_expression_dataset(data, gene_names):
+    means, var = GeneExpressionDataset.library_size(data)
+    data_length = data.shape[0]
+    batch = np.zeros((data_length, 1), dtype='uint32')
+    labels = np.ones((data_length, 1), dtype='uint32')
+    return GeneExpressionDataset(data, local_means=means, local_vars=var,
+                                 batch_indices=batch, labels=labels,
+                                 gene_names=gene_names)
 ###############################################################################
 # main
 ###############################################################################
+
+
 def main():
     usage = 'usage: %prog [options] <model_json> <data_file>'
     parser = OptionParser(usage)
@@ -43,6 +55,12 @@ def main():
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
                       default=None, help='Seed VAE model parameters')
+    parser.add_option('-k', dest='known_doublets',
+                      help='Experimentally defined doublets tsv file',
+                      type=str)
+    parser.add_option('-e', dest='expected_number_of_doublets',
+                      help='Experimentally expected number of doublets',
+                      type=int, default=None)
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -68,6 +86,25 @@ def main():
 
     num_cells, num_genes = scvi_data.X.shape
 
+    if options.known_doublets is not None:
+        print("Removing known doublets for in silico doublet generation")
+        print("Make sure known doublets are in the same order as your data")
+        known_doublets = pd.read_csv(options.known_doublets,
+                                     header=None)[0].values
+        assert len(known_doublets) == scvi_data.X.shape[0]
+        known_doublet_data = make_gene_expression_dataset(
+                                    scvi_data.X[known_doublets],
+                                    scvi_data.gene_names)
+        singlet_scvi_data = make_gene_expression_dataset(
+                                                 scvi_data.X[~known_doublets],
+                                                 scvi_data.gene_names)
+
+    else:
+        known_doublet_data = None
+        singlet_num_cells = num_cells
+        known_doublets = np.zeros(num_cells, dtype=bool)
+        singlet_scvi_data = scvi_data
+    singlet_num_cells, _ = singlet_scvi_data.X.shape
     ##################################################
     # parameters
 
@@ -92,7 +129,7 @@ def main():
     ##################################################
     # VAE
 
-    vae = VAE(n_input=scvi_data.nb_genes, n_labels=2,
+    vae = VAE(n_input=singlet_scvi_data.nb_genes, n_labels=2,
               reconstruction_loss='nb',
               log_variational=True, **vae_params)
 
@@ -115,7 +152,7 @@ def main():
         stopping_params['save_best_state_metric'] = 'll'
 
         # initialize unsupervised trainer
-        utrainer = UnsupervisedTrainer(vae, scvi_data,
+        utrainer = UnsupervisedTrainer(vae, singlet_scvi_data,
                                        train_size=(1. - valid_pct),
                                        frequency=2, metrics_to_monitor='ll',
                                        use_cuda=options.gpu, verbose=True,
@@ -132,8 +169,10 @@ def main():
         torch.save(vae.state_dict(), '%s/vae.pt' % options.out_dir)
 
         # save latent representation
-        full_posterior = utrainer.create_posterior(utrainer.model, scvi_data,
-                                                   indices=np.arange(len(scvi_data)))
+        full_posterior = utrainer.create_posterior(
+                                    utrainer.model,
+                                    singlet_scvi_data,
+                                    indices=np.arange(len(singlet_scvi_data)))
         latent, _, _ = full_posterior.sequential().get_latent()
         np.save('%s/latent.npy' % options.out_dir, latent.astype('float32'))
 
@@ -141,17 +180,22 @@ def main():
     ##################################################
     # simulate doublets
 
-    cell_depths = scvi_data.X.sum(axis=1)
-    num_doublets = int(options.doublet_ratio * num_cells)
-    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
+    cell_depths = singlet_scvi_data.X.sum(axis=1)
+    num_doublets = int(options.doublet_ratio * singlet_num_cells)
 
+    if known_doublet_data is not None:
+        num_doublets -= known_doublet_data.X.shape[0]
+        # make sure we are making a non negative amount of doublets
+        assert num_doublets >= 0
+    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
-        i, j = np.random.choice(num_cells, size=2)
+        i, j = np.random.choice(singlet_num_cells, size=2)
 
         # add their counts
-        dp = (scvi_data.X[i, :] + scvi_data.X[j, :]).astype('float64')
+        dp = (singlet_scvi_data.X[i, :]
+              + singlet_scvi_data.X[j, :]).astype('float64')
 
         # normalize
         dp /= dp.sum()
@@ -163,25 +207,21 @@ def main():
         X_doublets[di, :] = multinomial.rvs(n=dd, p=dp)
 
     # merge datasets
-    doublet_means, doublet_var = GeneExpressionDataset.library_size(X_doublets)
-    doublet_batch = np.zeros((num_doublets, 1), dtype='uint32')
-    doublet_labels = np.ones((num_doublets, 1), dtype='uint32')
-    doublet_data = GeneExpressionDataset(X_doublets, local_means=doublet_means,
-                                         local_vars=doublet_var,
-                                         batch_indices=doublet_batch,
-                                         labels=doublet_labels,
-                                         gene_names=scvi_data.gene_names)
-
+    # we can maybe up sample the known doublets
+    doublet_data = make_gene_expression_dataset(X_doublets,
+                                                scvi_data.gene_names)
     # manually set labels to 1
     doublet_data.labels += 1
     doublet_data.n_labels = 2
     scvi_data.n_labels = 2
-
+    scvi_data.labels[known_doublets] += 1
     # concatentate
-    scvi_data = GeneExpressionDataset.concat_datasets(scvi_data, doublet_data,
-                                                      shared_labels=True,
-                                                      shared_batches=True)
-    assert(len(np.unique(scvi_data.labels.flatten())) == 2)
+    classifier_data = GeneExpressionDataset.concat_datasets(scvi_data,
+                                                            doublet_data,
+                                                            shared_labels=True,
+                                                            shared_batches=True)
+
+    assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 
     ##################################################
     # classifier
@@ -195,7 +235,7 @@ def main():
     # trainer
     stopping_params['early_stopping_metric'] = 'accuracy'
     stopping_params['save_best_state_metric'] = 'accuracy'
-    strainer = ClassifierTrainer(classifier, scvi_data,
+    strainer = ClassifierTrainer(classifier, classifier_data,
                                  train_size=(1. - valid_pct),
                                  frequency=2, metrics_to_monitor=['accuracy'],
                                  use_cuda=options.gpu, verbose=True,
@@ -208,6 +248,7 @@ def main():
     # drop learning rate and continue
     strainer.early_stopping.wait = 0
     strainer.train(n_epochs=300, lr=0.1 * learning_rate)
+    torch.save(classifier.state_dict(), '%s/classifier.pt' % options.out_dir)
 
     ##################################################
     # post-processing
@@ -264,28 +305,60 @@ def main():
     plt.savefig('%s/accuracy.pdf' % options.out_dir)
     plt.close()
 
-    # plot distributions
-    plt.figure()
-    sns.distplot(test_score[test_y], label='Simulated')
-    sns.distplot(test_score[~test_y], label='Observed')
-    plt.legend()
-    plt.savefig('%s/dist.pdf' % options.out_dir)
-    plt.close()
-
     # write predictions
     order_y, order_score = strainer.compute_predictions(soft=True)
     order_score = order_score[:, 1]
     np.save('%s/scores.npy' % options.out_dir, order_score[:num_cells])
     np.save('%s/scores_sim.npy' % options.out_dir, order_score[num_cells:])
 
+    ## TODO: figure out this function
+    if options.expected_number_of_doublets is not None:
+        loner_scores = order_score[:num_cells]
+        k = len(loner_scores) - options.expected_number_of_doublets
+        if options.expected_number_of_doublets / len(loner_scores) > .5:
+            print("""Make sure you actually expect more than half your cells
+                   to be doublets. If not change your
+                   -e parameter value""")
+        assert k > 0
+        idx = np.argpartition(loner_scores, k)
+        threshold = np.max(loner_scores[idx[:k]])
+    else:
+        threshold = .5
+    is_loner_doublet = order_score > threshold
+
+    # plot distributions
+    plt.figure()
+    sns.distplot(test_score[test_y], label='Simulated')
+    sns.distplot(test_score[~test_y], label='Observed')
+    plt.axvline(x=threshold)
+    plt.legend()
+    plt.savefig('%s/train_v_test_dist.pdf' % options.out_dir)
+    plt.close()
+
+    plt.figure()
+    sns.distplot(order_score[:num_cells], label='Simulated')
+    plt.axvline(x=threshold)
+    plt.legend()
+    plt.savefig('%s/real_cells_dist.pdf' % options.out_dir)
+    plt.close()
+
+    is_doublet = known_doublets
+    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet[:num_cells])[0]
+    is_doublet[new_doublets_idx] = True
+
+    np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
+    np.save('%s/is_doublet_sim.npy' % options.out_dir, is_doublet[num_cells:])
+
     _, order_pred = strainer.compute_predictions()
     np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
     np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
 
 
-################################################################################
+###############################################################################
 # __main__
-################################################################################
+###############################################################################
+
+
 if __name__ == '__main__':
     main()
 
