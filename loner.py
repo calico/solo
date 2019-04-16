@@ -77,7 +77,7 @@ def main():
     if data_ext == '.loom':
         scvi_data = LoomDataset(data_file, save_path='./')
     elif data_ext == '.h5ad':
-        scvi_data = AnnDataset(data_file)
+        scvi_data = AnnDataset(data_file, save_path='./')
     else:
         print('Unrecognized file format')
 
