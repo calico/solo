@@ -24,10 +24,6 @@ Simulate doublets, train a VAE, and then a classifier on top.
 '''
 
 
-def read_tsv(path):
-    return pd.read_csv(path, header=None)
-
-
 def make_gene_expression_dataset(data, gene_names):
     means, var = GeneExpressionDataset.library_size(data)
     data_length = data.X.shape[0]
@@ -61,7 +57,7 @@ def main():
                       default=None, help='Seed VAE model parameters')
     parser.add_option('-k', dest='known_doublets',
                       help='Experimentally defined doublets tsv file',
-                      type=read_tsv)
+                      type=str)
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -88,7 +84,8 @@ def main():
     if options.known_doublets is not None:
         print("Removing known doublets for in silico doublet generation")
         print("Make sure known doublets are in the same order as your data")
-        known_doublets = options.known_doublets[0].values
+        known_doublets = pd.read_csv(options.known_doublets,
+                                     header=None)[0].values
         assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
