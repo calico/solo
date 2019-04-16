@@ -25,7 +25,7 @@ Simulate doublets, train a VAE, and then a classifier on top.
 
 
 def read_tsv(path):
-    return pd.read_csv(path, sep="\t")
+    return pd.read_csv(path, header=None)
 
 
 def make_gene_expression_dataset(data, gene_names):
@@ -84,13 +84,14 @@ def main():
         print('Unrecognized file format')
 
     if options.known_doublets is not None:
-        kd = options.known_doublets
-        doublet_bm = scvi_data.obs.index.isin(kd[kd['doublet']].index)
-        singlet_bm = scvi_data.obs.index.isin(kd[~kd['doublet']].index)
+        print("Removing known doublets for in silico doublet generation")
+        print("Make sure known doublets are in the same order as your data")
+        known_doublets = options.known_doublets[0].values
+        assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
-                                    scvi_data.X[doublet_bm],
+                                    scvi_data.X[known_doublets],
                                     scvi_data.gene_names)
-        scvi_data = make_gene_expression_dataset(scvi_data.X[singlet_bm],
+        scvi_data = make_gene_expression_dataset(scvi_data.X[~known_doublets],
                                                  scvi_data.gene_names)
     else:
         known_doublet_data = None
