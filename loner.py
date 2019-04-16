@@ -26,7 +26,7 @@ Simulate doublets, train a VAE, and then a classifier on top.
 
 def make_gene_expression_dataset(data, gene_names):
     means, var = GeneExpressionDataset.library_size(data)
-    data_length = data.X.shape[0]
+    data_length = data.shape[0]
     batch = np.zeros((data_length, 1), dtype='uint32')
     labels = np.ones((data_length, 1), dtype='uint32')
     return GeneExpressionDataset(data, local_means=means, local_vars=var,
