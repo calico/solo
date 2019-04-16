@@ -39,6 +39,8 @@ def make_gene_expression_dataset(data, gene_names):
 ###############################################################################
 # main
 ###############################################################################
+
+
 def main():
     usage = 'usage: %prog [options] <model_json> <data_file>'
     parser = OptionParser(usage)
@@ -57,7 +59,7 @@ def main():
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
                       default=None, help='Seed VAE model parameters')
-    parser.add_option('-kt', dest='known_doublets',
+    parser.add_option('-k', dest='known_doublets',
                       help='Experimentally defined doublets tsv file',
                       type=read_tsv)
     (options, args) = parser.parse_args()
