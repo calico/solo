@@ -81,6 +81,8 @@ def main():
     else:
         print('Unrecognized file format')
 
+    num_cells, num_genes = scvi_data.X.shape
+
     if options.known_doublets is not None:
         print("Removing known doublets for in silico doublet generation")
         print("Make sure known doublets are in the same order as your data")
@@ -92,10 +94,10 @@ def main():
                                     scvi_data.gene_names)
         scvi_data = make_gene_expression_dataset(scvi_data.X[~known_doublets],
                                                  scvi_data.gene_names)
+        singlet_num_cells, _ = scvi_data.X.shape
     else:
         known_doublet_data = None
-
-    num_cells, num_genes = scvi_data.X.shape
+        singlet_num_cells = num_cells
 
     ##################################################
     # parameters
@@ -171,7 +173,7 @@ def main():
     # simulate doublets
 
     cell_depths = scvi_data.X.sum(axis=1)
-    num_doublets = int(options.doublet_ratio * num_cells)
+    num_doublets = int(options.doublet_ratio * singlet_num_cells)
 
     if known_doublet_data is not None:
         num_doublets -= known_doublet_data.X.shape[0]
@@ -181,7 +183,7 @@ def main():
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
-        i, j = np.random.choice(num_cells, size=2)
+        i, j = np.random.choice(singlet_num_cells, size=2)
 
         # add their counts
         dp = (scvi_data.X[i, :] + scvi_data.X[j, :]).astype('float64')
@@ -238,6 +240,7 @@ def main():
     # drop learning rate and continue
     strainer.early_stopping.wait = 0
     strainer.train(n_epochs=300, lr=0.1 * learning_rate)
+    torch.save(vae.state_dict(), '%s/classifier.pt' % options.out_dir)
 
     ##################################################
     # post-processing
