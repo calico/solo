@@ -99,7 +99,7 @@ def main():
     else:
         known_doublet_data = None
         singlet_num_cells = num_cells
-        known_doublets = np.zeros(len(num_cells), dtype=bool)
+        known_doublets = np.zeros(num_cells, dtype=bool)
         singlet_scvi_data = scvi_data
     singlet_num_cells, _ = singlet_scvi_data.X.shape
     ##################################################
@@ -315,7 +315,6 @@ def main():
     _, order_pred = strainer.compute_predictions()
     np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
     np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
-
 
 ################################################################################
 # __main__
