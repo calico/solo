@@ -92,13 +92,16 @@ def main():
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
                                     scvi_data.gene_names)
-        scvi_data = make_gene_expression_dataset(scvi_data.X[~known_doublets],
+        singlet_scvi_data = make_gene_expression_dataset(
+                                                 scvi_data.X[~known_doublets],
                                                  scvi_data.gene_names)
-        singlet_num_cells, _ = scvi_data.X.shape
+
     else:
         known_doublet_data = None
         singlet_num_cells = num_cells
-
+        known_doublets = np.zeros(len(num_cells), dtype=bool)
+        singlet_scvi_data = scvi_data
+    singlet_num_cells, _ = singlet_scvi_data.X.shape
     ##################################################
     # parameters
 
@@ -146,7 +149,7 @@ def main():
         stopping_params['save_best_state_metric'] = 'll'
 
         # initialize unsupervised trainer
-        utrainer = UnsupervisedTrainer(vae, scvi_data,
+        utrainer = UnsupervisedTrainer(vae, singlet_scvi_data,
                                        train_size=(1. - valid_pct),
                                        frequency=2, metrics_to_monitor='ll',
                                        use_cuda=options.gpu, verbose=True,
@@ -172,7 +175,7 @@ def main():
     ##################################################
     # simulate doublets
 
-    cell_depths = scvi_data.X.sum(axis=1)
+    cell_depths = singlet_scvi_data.X.sum(axis=1)
     num_doublets = int(options.doublet_ratio * singlet_num_cells)
 
     if known_doublet_data is not None:
@@ -199,20 +202,18 @@ def main():
 
     # merge datasets
     # we can maybe up sample the known doublets
-    if known_doublet_data is not None:
-        X_doublets = np.vstack([known_doublet_data.X, X_doublets])
-
     doublet_data = make_gene_expression_dataset(X_doublets,
                                                 scvi_data.gene_names)
     # manually set labels to 1
     doublet_data.labels += 1
     doublet_data.n_labels = 2
     scvi_data.n_labels = 2
-
+    scvi_data.labels[known_doublets] += 1
     # concatentate
     scvi_data = GeneExpressionDataset.concat_datasets(scvi_data, doublet_data,
                                                       shared_labels=True,
                                                       shared_batches=True)
+
     assert(len(np.unique(scvi_data.labels.flatten())) == 2)
 
     ##################################################
