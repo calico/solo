@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 
+import anndata
 import numpy as np
 import pandas as pd
 from scipy.stats import multinomial
@@ -126,7 +127,7 @@ def main():
     ##################################################
     # VAE
 
-    vae = VAE(n_input=scvi_data.nb_genes, n_labels=2,
+    vae = VAE(n_input=singlet_scvi_data.nb_genes, n_labels=2,
               reconstruction_loss='nb',
               log_variational=True, **vae_params)
 
@@ -166,8 +167,10 @@ def main():
         torch.save(vae.state_dict(), '%s/vae.pt' % options.out_dir)
 
         # save latent representation
-        full_posterior = utrainer.create_posterior(utrainer.model, scvi_data,
-                                                   indices=np.arange(len(scvi_data)))
+        full_posterior = utrainer.create_posterior(
+                                    utrainer.model,
+                                    singlet_scvi_data,
+                                    indices=np.arange(len(singlet_scvi_data)))
         latent, _, _ = full_posterior.sequential().get_latent()
         np.save('%s/latent.npy' % options.out_dir, latent.astype('float32'))
 
@@ -189,7 +192,7 @@ def main():
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # add their counts
-        dp = (scvi_data.X[i, :] + scvi_data.X[j, :]).astype('float64')
+        dp = (singlet_scvi_data.X[i, :] + singlet_scvi_data.X[j, :]).astype('float64')
 
         # normalize
         dp /= dp.sum()
@@ -210,7 +213,8 @@ def main():
     scvi_data.n_labels = 2
     scvi_data.labels[known_doublets] += 1
     # concatentate
-    scvi_data = GeneExpressionDataset.concat_datasets(scvi_data, doublet_data,
+    scvi_data = GeneExpressionDataset.concat_datasets(scvi_data,
+                                                      doublet_data,
                                                       shared_labels=True,
                                                       shared_batches=True)
 
@@ -312,9 +316,31 @@ def main():
     np.save('%s/scores.npy' % options.out_dir, order_score[:num_cells])
     np.save('%s/scores_sim.npy' % options.out_dir, order_score[num_cells:])
 
+    ## TODO: figure out this function
+    is_loner_doublet = order_score > .5
+
+    is_doublet = known_doublets
+    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet)[0]
+    is_doublet[new_doublets_idx] = True
+
+    np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
+    np.save('%s/is_doublet_sim.npy' % options.out_dir, is_doublet[num_cells:])
+
     _, order_pred = strainer.compute_predictions()
     np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
     np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
+
+    scvi_data.obs['is_doublet'] = is_doublet
+    scvi_data.obs['softmax'] = order_score
+    scvi_data.obs['preds'] = order_pred
+    scvi_data.update_cells(np.arange(num_cells))
+    if data_ext == '.loom':
+        anndata.Anndata(scvi_data.X,
+                        scvi_data.obs).write_loom(
+                        "data_with_doublets_marked.loom")
+    else:
+        anndata.Anndata(scvi_data.X,
+                        scvi_data.obs).write("data_with_doublets_marked.h5ad")
 
 ################################################################################
 # __main__
