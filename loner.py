@@ -320,7 +320,7 @@ def main():
     is_loner_doublet = order_score > .5
 
     is_doublet = known_doublets
-    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet)[0]
+    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet[:num_cells])[0]
     is_doublet[new_doublets_idx] = True
 
     np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
