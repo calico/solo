@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 
-import anndata
 import numpy as np
 import pandas as pd
 from scipy.stats import multinomial
@@ -59,6 +58,9 @@ def main():
     parser.add_option('-k', dest='known_doublets',
                       help='Experimentally defined doublets tsv file',
                       type=str)
+    parser.add_option('-e', dest='expected_number_of_doublets',
+                      help='Experimentally expected number of doublets',
+                      type=int, default=None)
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -192,8 +194,8 @@ def main():
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # add their counts
-        dp = (singlet_scvi_data.X[i, :] +
-              singlet_scvi_data.X[j, :]).astype('float64')
+        dp = (singlet_scvi_data.X[i, :]
+              + singlet_scvi_data.X[j, :]).astype('float64')
 
         # normalize
         dp /= dp.sum()
@@ -214,10 +216,10 @@ def main():
     scvi_data.n_labels = 2
     scvi_data.labels[known_doublets] += 1
     # concatentate
-    scvi_data = GeneExpressionDataset.concat_datasets(scvi_data,
-                                                      doublet_data,
-                                                      shared_labels=True,
-                                                      shared_batches=True)
+    classifier_data = GeneExpressionDataset.concat_datasets(scvi_data,
+                                                            doublet_data,
+                                                            shared_labels=True,
+                                                            shared_batches=True)
 
     assert(len(np.unique(scvi_data.labels.flatten())) == 2)
 
@@ -233,7 +235,7 @@ def main():
     # trainer
     stopping_params['early_stopping_metric'] = 'accuracy'
     stopping_params['save_best_state_metric'] = 'accuracy'
-    strainer = ClassifierTrainer(classifier, scvi_data,
+    strainer = ClassifierTrainer(classifier, classifier_data,
                                  train_size=(1. - valid_pct),
                                  frequency=2, metrics_to_monitor=['accuracy'],
                                  use_cuda=options.gpu, verbose=True,
@@ -303,14 +305,6 @@ def main():
     plt.savefig('%s/accuracy.pdf' % options.out_dir)
     plt.close()
 
-    # plot distributions
-    plt.figure()
-    sns.distplot(test_score[test_y], label='Simulated')
-    sns.distplot(test_score[~test_y], label='Observed')
-    plt.legend()
-    plt.savefig('%s/dist.pdf' % options.out_dir)
-    plt.close()
-
     # write predictions
     order_y, order_score = strainer.compute_predictions(soft=True)
     order_score = order_score[:, 1]
@@ -318,7 +312,35 @@ def main():
     np.save('%s/scores_sim.npy' % options.out_dir, order_score[num_cells:])
 
     ## TODO: figure out this function
-    is_loner_doublet = order_score > .5
+    if options.expected_number_of_doublets is not None:
+        loner_scores = order_score[:num_cells]
+        k = len(loner_scores) - options.expected_number_of_doublets
+        if options.expected_number_of_doublets / len(loner_scores) > .5:
+            print("""Make sure you actually expect more than half your cells
+                   to be doublets. If not change your
+                   -e parameter value""")
+        assert k > 0
+        idx = np.argpartition(loner_scores, k)
+        threshold = np.max(loner_scores[idx[:k]])
+    else:
+        threshold = .5
+    is_loner_doublet = order_score > threshold
+
+    # plot distributions
+    plt.figure()
+    sns.distplot(test_score[test_y], label='Simulated')
+    sns.distplot(test_score[~test_y], label='Observed')
+    plt.axvline(x=threshold)
+    plt.legend()
+    plt.savefig('%s/train_v_test_dist.pdf' % options.out_dir)
+    plt.close()
+
+    plt.figure()
+    sns.distplot(loner_scores, label='Simulated')
+    plt.axvline(x=threshold)
+    plt.legend()
+    plt.savefig('%s/real_cells_dist.pdf' % options.out_dir)
+    plt.close()
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet[:num_cells])[0]
@@ -331,21 +353,12 @@ def main():
     np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
     np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
 
-    scvi_data.obs['is_doublet'] = is_doublet
-    scvi_data.obs['softmax'] = order_score
-    scvi_data.obs['preds'] = order_pred
-    scvi_data.update_cells(np.arange(num_cells))
-    if data_ext == '.loom':
-        anndata.Anndata(scvi_data.X,
-                        scvi_data.obs).write_loom(
-                        "data_with_doublets_marked.loom")
-    else:
-        anndata.Anndata(scvi_data.X,
-                        scvi_data.obs).write("data_with_doublets_marked.h5ad")
 
-################################################################################
+###############################################################################
 # __main__
-################################################################################
+###############################################################################
+
+
 if __name__ == '__main__':
     main()
 
