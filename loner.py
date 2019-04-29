@@ -248,7 +248,7 @@ def main():
     # drop learning rate and continue
     strainer.early_stopping.wait = 0
     strainer.train(n_epochs=300, lr=0.1 * learning_rate)
-    torch.save(vae.state_dict(), '%s/classifier.pt' % options.out_dir)
+    torch.save(classifier.state_dict(), '%s/classifier.pt' % options.out_dir)
 
     ##################################################
     # post-processing
