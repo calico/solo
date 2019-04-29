@@ -221,7 +221,7 @@ def main():
                                                             shared_labels=True,
                                                             shared_batches=True)
 
-    assert(len(np.unique(scvi_data.labels.flatten())) == 2)
+    assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 
     ##################################################
     # classifier
@@ -336,7 +336,7 @@ def main():
     plt.close()
 
     plt.figure()
-    sns.distplot(loner_scores, label='Simulated')
+    sns.distplot(order_score[:num_cells], label='Simulated')
     plt.axvline(x=threshold)
     plt.legend()
     plt.savefig('%s/real_cells_dist.pdf' % options.out_dir)
