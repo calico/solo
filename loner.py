@@ -192,7 +192,8 @@ def main():
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # add their counts
-        dp = (singlet_scvi_data.X[i, :] + singlet_scvi_data.X[j, :]).astype('float64')
+        dp = (singlet_scvi_data.X[i, :] +
+              singlet_scvi_data.X[j, :]).astype('float64')
 
         # normalize
         dp /= dp.sum()
