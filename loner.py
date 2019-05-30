@@ -86,7 +86,7 @@ def main():
                       help='Experimentally defined doublets tsv file',
                       type=str)
     parser.add_option('-t', dest='doublet_type', help="Please enter \
-                      multinomial, average, or sum", type=str,
+                      multinomial, average, or sum",
                       default="multinomial",
                       choices=['multinomial', 'average', 'sum'])
     parser.add_option('-e', dest='expected_number_of_doublets',
