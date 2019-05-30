@@ -235,8 +235,10 @@ def main():
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # generate doublets
-        X_doublets[di, :] = doublet_function(singlet_scvi_data.X, i, j,
-                                             options.doublet_depth, cell_depths)
+        X_doublets[di, :] = \
+            doublet_function(singlet_scvi_data.X, i, j,
+                             doublet_depth=options.doublet_depth,
+                             cell_depths=cell_depths)
 
     # merge datasets
     # we can maybe up sample the known doublets
