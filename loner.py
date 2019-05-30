@@ -24,6 +24,33 @@ Simulate doublets, train a VAE, and then a classifier on top.
 '''
 
 
+def create_average_doublet(X, i, j, **kwargs):
+    return (X[i, :] + X[j, :]).astype('float64') / 2
+
+
+def create_summed_doublet(X, i, j, **kwargs):
+    return (X[i, :] + X[j, :]).astype('float64')
+
+
+def create_multinomial_doublet(X, i, j, **kwargs):
+
+    doublet_depth = kwargs["doublet_depth"]
+    cell_depths = kwargs["cell_depths"]
+
+    # add their counts
+    dp = (X[i, :]
+          + X[j, :]).astype('float64')
+
+    # normalize
+    dp /= dp.sum()
+
+    # choose depth
+    dd = int(doublet_depth * (cell_depths[i] + cell_depths[j]) / 2)
+
+    # sample counts from multinomial
+    return multinomial.rvs(n=dd, p=dp)
+
+
 def make_gene_expression_dataset(data, gene_names):
     means, var = GeneExpressionDataset.library_size(data)
     data_length = data.shape[0]
@@ -58,6 +85,10 @@ def main():
     parser.add_option('-k', dest='known_doublets',
                       help='Experimentally defined doublets tsv file',
                       type=str)
+    parser.add_option('-t', dest='doublet_type', help="Please enter \
+                      multinomial, average, or sum", type=str,
+                      default="multinomial",
+                      choices=['multinomial', 'average', 'sum'])
     parser.add_option('-e', dest='expected_number_of_doublets',
                       help='Experimentally expected number of doublets',
                       type=int, default=None)
@@ -188,23 +219,24 @@ def main():
         # make sure we are making a non negative amount of doublets
         assert num_doublets >= 0
     X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
+
+    # choose doublets function type
+    if options.doublet_type == "average":
+        doublet_function = create_average_doublet
+    elif options.doublet_type == "sum":
+        doublet_function = create_summed_doublet
+    elif options.doublet_type == "multinomial":
+        doublet_function = create_multinomial_doublet
+    else:
+        raise ValueError
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
         i, j = np.random.choice(singlet_num_cells, size=2)
 
-        # add their counts
-        dp = (singlet_scvi_data.X[i, :]
-              + singlet_scvi_data.X[j, :]).astype('float64')
-
-        # normalize
-        dp /= dp.sum()
-
-        # choose depth
-        dd = int(options.doublet_depth * (cell_depths[i] + cell_depths[j]) / 2)
-
-        # sample counts from multinomial
-        X_doublets[di, :] = multinomial.rvs(n=dd, p=dp)
+        # generate doublets
+        X_doublets[di, :] = doublet_function(singlet_scvi_data.X, i, j,
+                                             options.doublet_depth, cell_depths)
 
     # merge datasets
     # we can maybe up sample the known doublets
