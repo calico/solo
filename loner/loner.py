@@ -6,7 +6,6 @@ import shutil
 
 import numpy as np
 import pandas as pd
-from scipy.stats import multinomial
 from sklearn.metrics import roc_auc_score, roc_curve
 
 import matplotlib.pyplot as plt
@@ -24,41 +23,6 @@ Simulate doublets, train a VAE, and then a classifier on top.
 '''
 
 
-def create_average_doublet(X, i, j, **kwargs):
-    return (X[i, :] + X[j, :]).astype('float64') / 2
-
-
-def create_summed_doublet(X, i, j, **kwargs):
-    return (X[i, :] + X[j, :]).astype('float64')
-
-
-def create_multinomial_doublet(X, i, j, **kwargs):
-
-    doublet_depth = kwargs["doublet_depth"]
-    cell_depths = kwargs["cell_depths"]
-
-    # add their counts
-    dp = (X[i, :]
-          + X[j, :]).astype('float64')
-
-    # normalize
-    dp /= dp.sum()
-
-    # choose depth
-    dd = int(doublet_depth * (cell_depths[i] + cell_depths[j]) / 2)
-
-    # sample counts from multinomial
-    return multinomial.rvs(n=dd, p=dp)
-
-
-def make_gene_expression_dataset(data, gene_names):
-    means, var = GeneExpressionDataset.library_size(data)
-    data_length = data.shape[0]
-    batch = np.zeros((data_length, 1), dtype='uint32')
-    labels = np.ones((data_length, 1), dtype='uint32')
-    return GeneExpressionDataset(data, local_means=means, local_vars=var,
-                                 batch_indices=batch, labels=labels,
-                                 gene_names=gene_names)
 ###############################################################################
 # main
 ###############################################################################
@@ -228,7 +192,8 @@ def main():
     elif options.doublet_type == "multinomial":
         doublet_function = create_multinomial_doublet
     else:
-        raise ValueError
+        raise ValueError("You must select average, sum, multinomial \
+                         for doublet generation method")
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
@@ -395,4 +360,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
