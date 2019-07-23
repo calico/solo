@@ -16,6 +16,9 @@ from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
 
+from utils import create_average_doublet, create_summed_doublet, \
+    create_multinomial_doublet, make_gene_expression_dataset
+
 '''
 loner.py
 
