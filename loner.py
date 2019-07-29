@@ -43,6 +43,12 @@ def main():
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
                       default=None, help='Seed VAE model parameters')
+    parser.add_option('--random_size', dest='randomize_doublet_size',
+                      default=False,
+                      action='store_true',
+                      help='Sample depth multipliers from Unif(1, DoubletDepth) \
+                      to provide a diversity of possible doublet depths.'
+                      )
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -157,7 +163,11 @@ def main():
         dp /= dp.sum()
 
         # choose depth
-        dd = int(options.doublet_depth * (cell_depths[i] + cell_depths[j]) / 2)
+        if options.randomize_doublet_size:
+            scale_factor = np.random.uniform(1., options.doublet_depth)
+        else:
+            scale_factor = options.doublet_depth
+        dd = int(scale_factor * (cell_depths[i] + cell_depths[j]) / 2)
 
         # sample counts from multinomial
         X_doublets[di, :] = multinomial.rvs(n=dd, p=dp)
