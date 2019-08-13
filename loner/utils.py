@@ -26,6 +26,7 @@ def create_multinomial_doublet(X, i, j, **kwargs):
 
     # a huge hack caused by
     # fun fun fun https://stackoverflow.com/questions/23257587/how-can-i-avoid-value-errors-when-using-numpy-random-multinomial
+    # okay with this hack because affects pro
     off_zero = (dp.sum() - 1)
     if off_zero != 0:
         dp[np.where(dp > 0)[0][0]] = dp[dp > 0][0] - (off_zero)
@@ -38,5 +39,5 @@ def create_multinomial_doublet(X, i, j, **kwargs):
 
 def make_gene_expression_dataset(data, gene_names):
     ge_data = GeneExpressionDataset()
-    ge_data.populate_from_data(X=data)
+    ge_data.populate_from_data(X=data, gene_names=gene_names)
     return ge_data
