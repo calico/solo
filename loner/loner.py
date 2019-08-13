@@ -152,6 +152,7 @@ def main():
         stopping_params['save_best_state_metric'] = 'reconstruction_error'
 
         # initialize unsupervised trainer
+<<<<<<< HEAD:loner/loner.py
         utrainer = \
             UnsupervisedTrainer(vae, singlet_scvi_data,
                                 train_size=(1. - valid_pct),
@@ -159,6 +160,13 @@ def main():
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=options.gpu,
                                 early_stopping_kwargs=stopping_params)
+=======
+        utrainer = UnsupervisedTrainer(vae, singlet_scvi_data,
+                                       train_size=(1. - valid_pct),
+                                       frequency=2, metrics_to_monitor='ll',
+                                       use_cuda=options.gpu, verbose=True,
+                                       early_stopping_kwargs=stopping_params)
+>>>>>>> eaae29f7e1fcfc0033b0a2bbf273b551d060eea0:loner/loner.py
 
         # initial epoch
         utrainer.train(n_epochs=2000, lr=learning_rate)
@@ -214,6 +222,7 @@ def main():
 
     # merge datasets
     # we can maybe up sample the known doublets
+<<<<<<< HEAD:loner/loner.py
     # concatentate
     classifier_data = GeneExpressionDataset()
     classifier_data.populate_from_data(
@@ -221,6 +230,20 @@ def main():
                     labels=np.hstack([np.ravel(scvi_data.labels),
                                       np.ones(X_doublets.shape[0])]),
                     remap_attributes=False)
+=======
+    doublet_data = make_gene_expression_dataset(X_doublets,
+                                                scvi_data.gene_names)
+    # manually set labels to 1
+    doublet_data.labels += 1
+    doublet_data.n_labels = 2
+    scvi_data.n_labels = 2
+    scvi_data.labels[known_doublets] += 1
+    # concatentate
+    classifier_data = GeneExpressionDataset.concat_datasets(scvi_data,
+                                                            doublet_data,
+                                                            shared_labels=True,
+                                                            shared_batches=True)
+>>>>>>> eaae29f7e1fcfc0033b0a2bbf273b551d060eea0:loner/loner.py
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 
