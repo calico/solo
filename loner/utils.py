@@ -19,7 +19,7 @@ def create_multinomial_doublet(X, i, j, **kwargs):
 
     # add their counts
     dp = (X[i, :]
-          + X[j, :]).astype('float32')
+          + X[j, :]).astype('float64')
 
     # normalize
     dp /= dp.sum()
