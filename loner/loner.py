@@ -3,6 +3,7 @@ from optparse import OptionParser
 import json
 import os
 import shutil
+import anndata
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,8 @@ from sklearn.metrics import roc_auc_score, roc_curve
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from scvi.dataset import AnnDataset, LoomDataset, GeneExpressionDataset
+from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
+                         GeneExpressionDataset
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
@@ -35,7 +37,7 @@ def main():
     usage = 'usage: %prog [options] <model_json> <data_file>'
     parser = OptionParser(usage)
     parser.add_option('-d', dest='doublet_depth',
-                      default=1., type='float',
+                      default=2., type='float',
                       help='Depth multiplier for a doublet relative to the \
                       average of its constituents [Default: % default]')
     parser.add_option('-g', dest='gpu',
@@ -44,7 +46,7 @@ def main():
     parser.add_option('-o', dest='out_dir',
                       default='loner_out')
     parser.add_option('-r', dest='doublet_ratio',
-                      default=1., type='float',
+                      default=2., type='float',
                       help='Ratio of doublets to true \
                       cells [Default: %default]')
     parser.add_option('-s', dest='seed',
@@ -76,9 +78,9 @@ def main():
     # read loom/anndata
     data_ext = os.path.splitext(data_file)[-1]
     if data_ext == '.loom':
-        scvi_data = LoomDataset(data_file, save_path='./')
+        scvi_data = LoomDataset(data_file)
     elif data_ext == '.h5ad':
-        scvi_data = AnnDataset(data_file, save_path='./')
+        scvi_data = AnnDatasetFromAnnData(anndata.read(data_file))
     else:
         print('Unrecognized file format')
 
@@ -146,15 +148,17 @@ def main():
             shutil.copy(latent_file, '%s/latent.npy' % options.out_dir)
 
     else:
-        stopping_params['early_stopping_metric'] = 'll'
-        stopping_params['save_best_state_metric'] = 'll'
+        stopping_params['early_stopping_metric'] = 'reconstruction_error'
+        stopping_params['save_best_state_metric'] = 'reconstruction_error'
 
         # initialize unsupervised trainer
-        utrainer = UnsupervisedTrainer(vae, singlet_scvi_data,
-                                       train_size=(1. - valid_pct),
-                                       frequency=2, metrics_to_monitor='ll',
-                                       use_cuda=options.gpu, verbose=True,
-                                       early_stopping_kwargs=stopping_params)
+        utrainer = \
+            UnsupervisedTrainer(vae, singlet_scvi_data,
+                                train_size=(1. - valid_pct),
+                                frequency=2,
+                                metrics_to_monitor=['reconstruction_error'],
+                                use_cuda=options.gpu,
+                                early_stopping_kwargs=stopping_params)
 
         # initial epoch
         utrainer.train(n_epochs=2000, lr=learning_rate)
@@ -210,18 +214,13 @@ def main():
 
     # merge datasets
     # we can maybe up sample the known doublets
-    doublet_data = make_gene_expression_dataset(X_doublets,
-                                                scvi_data.gene_names)
-    # manually set labels to 1
-    doublet_data.labels += 1
-    doublet_data.n_labels = 2
-    scvi_data.n_labels = 2
-    scvi_data.labels[known_doublets] += 1
     # concatentate
-    classifier_data = GeneExpressionDataset.concat_datasets(scvi_data,
-                                                            doublet_data,
-                                                            shared_labels=True,
-                                                            shared_batches=True)
+    classifier_data = GeneExpressionDataset()
+    classifier_data.populate_from_data(
+                    X=np.vstack([scvi_data.X, X_doublets]),
+                    labels=np.hstack([np.ravel(scvi_data.labels),
+                                      np.ones(X_doublets.shape[0])]),
+                    remap_attributes=False)
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 
@@ -240,7 +239,7 @@ def main():
     strainer = ClassifierTrainer(classifier, classifier_data,
                                  train_size=(1. - valid_pct),
                                  frequency=2, metrics_to_monitor=['accuracy'],
-                                 use_cuda=options.gpu, verbose=True,
+                                 use_cuda=options.gpu,
                                  sampling_model=vae, sampling_zl=True,
                                  early_stopping_kwargs=stopping_params)
 

@@ -19,11 +19,16 @@ def create_multinomial_doublet(X, i, j, **kwargs):
 
     # add their counts
     dp = (X[i, :]
-          + X[j, :]).astype('float64')
+          + X[j, :]).astype('float32')
 
     # normalize
     dp /= dp.sum()
 
+    # a huge hack caused by
+    # fun fun fun https://stackoverflow.com/questions/23257587/how-can-i-avoid-value-errors-when-using-numpy-random-multinomial
+    off_zero = (dp.sum() - 1)
+    if off_zero != 0:
+        dp[np.where(dp > 0)[0][0]] = dp[dp > 0][0] - (off_zero)
     # choose depth
     dd = int(doublet_depth * (cell_depths[i] + cell_depths[j]) / 2)
 
@@ -32,10 +37,6 @@ def create_multinomial_doublet(X, i, j, **kwargs):
 
 
 def make_gene_expression_dataset(data, gene_names):
-    means, var = GeneExpressionDataset.library_size(data)
-    data_length = data.shape[0]
-    batch = np.zeros((data_length, 1), dtype='uint32')
-    labels = np.ones((data_length, 1), dtype='uint32')
-    return GeneExpressionDataset(data, local_means=means, local_vars=var,
-                                 batch_indices=batch, labels=labels,
-                                 gene_names=gene_names)
+    ge_data = GeneExpressionDataset()
+    ge_data.populate_from_data(X=data)
+    return ge_data

@@ -14,18 +14,6 @@ except ImportError:  # Deps not yet installed
     __author__ = __email__ = ''
 
 
-def required_packages():
-    deps = []
-    with open("environment.yml", 'r') as stream:
-        for dep in yaml.safe_load(stream)['dependencies']:
-            if isinstance(dep, dict):
-                for pip in dep['pip']:
-                    deps.append(pip)
-            else:
-                deps.append(dep)
-    return deps
-
-
 setup(
     name='loner',
     version='0.1',
@@ -36,7 +24,9 @@ setup(
     author_email=__email__,
     license='Apache',
     python_requires='>=3.6',
-    install_requires=required_packages(),
+    install_requires=r[l.strip() for l in
+                       Path('requirements.txt').read_text('utf-8').splitlines()
+                       ],
     packages=find_packages(),
     entry_points=dict(
         console_scripts=['scnym=loner.loner:main'],
