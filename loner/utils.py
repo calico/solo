@@ -1,7 +1,9 @@
 import numpy as np
 
+
 from scvi.dataset import GeneExpressionDataset
 from scipy.stats import multinomial
+from scipy.sparse import issparse
 
 
 def create_average_doublet(X, i, j, **kwargs):
@@ -21,6 +23,10 @@ def create_multinomial_doublet(X, i, j, **kwargs):
     dp = (X[i, :]
           + X[j, :]).astype('float64')
 
+    if issparse(dp):
+        dp = np.ravel(dp.todense())
+    else:
+        dp
     # a huge hack caused by
     # https://github.com/numpy/numpy/issues/8317
     # fun fun fun https://stackoverflow.com/questions/23257587/how-can-i-avoid-value-errors-when-using-numpy-random-multinomial
