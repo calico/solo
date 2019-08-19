@@ -8,6 +8,7 @@ import anndata
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, roc_curve
+from scipy.sparse import issparse
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -83,7 +84,8 @@ def main():
         scvi_data = AnnDatasetFromAnnData(anndata.read(data_file))
     else:
         print('Unrecognized file format')
-
+    if issparse(scvi_data.X):
+        scvi_data.X = scvi_data.X.todense()
     num_cells, num_genes = scvi_data.X.shape
 
     if options.known_doublets is not None:
