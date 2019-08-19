@@ -90,7 +90,7 @@ def main():
         print("Removing known doublets for in silico doublet generation")
         print("Make sure known doublets are in the same order as your data")
         known_doublets = pd.read_csv(options.known_doublets,
-                                     header=None).values
+                                     header=None)[0].values
         assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
