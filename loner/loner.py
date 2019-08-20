@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, roc_curve
 from scipy.sparse import issparse
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -192,17 +193,21 @@ def main():
         # make sure we are making a non negative amount of doublets
         assert num_doublets >= 0
     X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
+    non_zero_indexes = np.where(singlet_scvi_data.X > 0)
+    cells = non_zero_indexes[0]
+    genes = non_zero_indexes[1]
+    cells_ids = defaultdict(list)
+    for cell_id, gene in zip(cells, genes):
+        cells_ids[cell_id].append(gene)
 
     # choose doublets function type
     if options.doublet_type == "average":
         doublet_function = create_average_doublet
     elif options.doublet_type == "sum":
         doublet_function = create_summed_doublet
-    elif options.doublet_type == "multinomial":
-        doublet_function = create_multinomial_doublet
     else:
-        raise ValueError("You must select average, sum, multinomial \
-                         for doublet generation method")
+        doublet_function = create_multinomial_doublet
+
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
@@ -212,7 +217,7 @@ def main():
         X_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=options.doublet_depth,
-                             cell_depths=cell_depths)
+                             cell_depths=cell_depths, cells_ids=cells_ids)
 
     # merge datasets
     # we can maybe up sample the known doublets

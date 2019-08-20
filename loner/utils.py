@@ -13,7 +13,7 @@ def create_summed_doublet(X, i, j, **kwargs):
     return (X[i, :] + X[j, :]).astype('float64')
 
 
-def create_multinomial_doublet(X, i, j, **kwargs):
+def create_multinomial_doublet(X, cells_ids, i, j, **kwargs):
 
     doublet_depth = kwargs["doublet_depth"]
     cell_depths = kwargs["cell_depths"]
@@ -21,12 +21,12 @@ def create_multinomial_doublet(X, i, j, **kwargs):
     # add their counts
     dp = (X[i, :]
           + X[j, :]).astype('float64')
-
+    dp = np.ravel(dp)
+    non_zero_indexes = np.unique(cells_ids[i] + cells_ids[j])
     # a huge hack caused by
     # https://github.com/numpy/numpy/issues/8317
     # fun fun fun https://stackoverflow.com/questions/23257587/how-can-i-avoid-value-errors-when-using-numpy-random-multinomial
     # okay with this hack because affects pro
-    non_zero_indexes = np.where(dp > 0)[0]
     dp = dp[non_zero_indexes]
     # normalize
     dp /= dp.sum()
