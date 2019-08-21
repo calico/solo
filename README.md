@@ -6,7 +6,7 @@ Cells subjected to single cell RNA-seq have been through a lot, and they'd reall
 
 ### How
 Run the following to clone and set up ve.
-`git clone git@github.com:calico/loner.git && cd loner && conda env create -f environment.yml`
+`git clone git@github.com:calico/loner.git && cd loner && conda env create -n loner && conda activate loner && pip install -e requirements.txt`
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
