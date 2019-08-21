@@ -13,11 +13,11 @@ def create_summed_doublet(X, i, j, **kwargs):
     return (X[i, :] + X[j, :]).astype('float64')
 
 
-def create_multinomial_doublet(X, cells_ids, i, j, **kwargs):
+def create_multinomial_doublet(X, i, j, **kwargs):
 
     doublet_depth = kwargs["doublet_depth"]
     cell_depths = kwargs["cell_depths"]
-
+    cells_ids = kwargs["cells_ids"]
     # add their counts
     dp = (X[i, :]
           + X[j, :]).astype('float64')
