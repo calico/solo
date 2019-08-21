@@ -98,16 +98,18 @@ def main():
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
                                     scvi_data.gene_names)
+        known_doublet_data.labels = np.ones(known_doublet_data.X.shape[0])
         singlet_scvi_data = make_gene_expression_dataset(
                                                  scvi_data.X[~known_doublets],
                                                  scvi_data.gene_names)
-
+        singlet_num_cells, _ = singlet_scvi_data.X.shape
     else:
         known_doublet_data = None
         singlet_num_cells = num_cells
         known_doublets = np.zeros(num_cells, dtype=bool)
         singlet_scvi_data = scvi_data
-    singlet_num_cells, _ = singlet_scvi_data.X.shape
+    singlet_scvi_data.labels = np.zeros(singlet_scvi_data.X.shape[0])
+    scvi_data.labels = known_doublets.astype(int)
     ##################################################
     # parameters
 
@@ -185,14 +187,6 @@ def main():
     ##################################################
     # simulate doublets
 
-    cell_depths = singlet_scvi_data.X.sum(axis=1)
-    num_doublets = int(options.doublet_ratio * singlet_num_cells)
-
-    if known_doublet_data is not None:
-        num_doublets -= known_doublet_data.X.shape[0]
-        # make sure we are making a non negative amount of doublets
-        assert num_doublets >= 0
-    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     non_zero_indexes = np.where(singlet_scvi_data.X > 0)
     cells = non_zero_indexes[0]
     genes = non_zero_indexes[1]
@@ -208,25 +202,35 @@ def main():
     else:
         doublet_function = create_multinomial_doublet
 
+    cell_depths = singlet_scvi_data.X.sum(axis=1)
+    num_doublets = int(options.doublet_ratio * singlet_num_cells)
+    if known_doublet_data is not None:
+        num_doublets -= known_doublet_data.X.shape[0]
+        # make sure we are making a non negative amount of doublets
+        assert num_doublets >= 0
+
+    in_silico_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # generate doublets
-        X_doublets[di, :] = \
+        in_silico_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=options.doublet_depth,
                              cell_depths=cell_depths, cells_ids=cells_ids)
+
 
     # merge datasets
     # we can maybe up sample the known doublets
     # concatentate
     classifier_data = GeneExpressionDataset()
     classifier_data.populate_from_data(
-                    X=np.vstack([scvi_data.X, X_doublets]),
+                    X=np.vstack([scvi_data.X,
+                                 in_silico_doublets]),
                     labels=np.hstack([np.ravel(scvi_data.labels),
-                                      np.ones(X_doublets.shape[0])]),
+                                      np.ones(in_silico_doublets.shape[0])]),
                     remap_attributes=False)
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
