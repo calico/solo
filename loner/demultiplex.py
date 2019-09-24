@@ -331,7 +331,7 @@ def main():
                              clustering_data=options.clustering_data,
                              **params)
     adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
-    plot_qc_checks_cell_hashing(adata, os.path.join(options.out_dir, options.plot_name))
+    plot_qc_checks_cell_hashing(adata, fig_path=os.path.join(options.out_dir, options.plot_name))
 
 ###############################################################################
 # __main__
