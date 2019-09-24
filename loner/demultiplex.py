@@ -23,7 +23,7 @@ def _calculate_probabilities(z, total_samples):
     insilico_probs = []
     num_of_barcodes = z.shape[1]
     num_of_noise_barcodes = num_of_barcodes - 2
-
+    z = np.log(z + 1)
     z_arg = np.argsort(z, axis=1)
 
     noise_params_dict = {}
@@ -35,8 +35,8 @@ def _calculate_probabilities(z, total_samples):
         sample_barcodes_noise_idx = np.where(z_arg[:, :num_of_noise_barcodes] == x)[0]
         sample_barcodes_signal_idx = np.where(z_arg[:, -1] == x)
         # get noise and signal counts
-        noise_counts = np.log(sample_barcodes[sample_barcodes_noise_idx] + 1)
-        signal_counts = np.log(sample_barcodes[sample_barcodes_signal_idx] + 1)
+        noise_counts = sample_barcodes[sample_barcodes_noise_idx]
+        signal_counts = sample_barcodes[sample_barcodes_signal_idx]
 
         # get parameters of distribution, assuming lognormal
         noise_param = (np.mean(noise_counts), np.std(noise_counts))
@@ -98,7 +98,7 @@ def _calculate_probabilities(z, total_samples):
         log_probs_insilico_list = [log_probs_of_insilico_negative, log_probs_of_insilico_singlet, log_probs_of_insilico_doublet]
 
         # calculate probabilties for each hypothesis for each cell
-        z_subset = np.log(z[subset] + 1)
+        z_subset = z[subset]
         log_signal_signal_probs = np.log(norm.pdf(z_subset[:, signal_sample_idx], *signal_params[:-2], loc=signal_params[-2], scale=signal_params[-1])  + eps)
         signal_noise_params = signal_params_dict[noise_sample_idx]
         log_noise_signal_probs = np.log(norm.pdf(z_subset[:, noise_sample_idx], *signal_noise_params[:-2], loc=signal_noise_params[-2], scale=signal_noise_params[-1]) + eps)
