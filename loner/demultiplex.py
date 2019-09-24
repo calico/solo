@@ -327,16 +327,18 @@ def main():
         clustering_data_file = options.clustering_data
         clustering_data_ext = os.path.splitext(clustering_data_file)[-1]
         if clustering_data_ext == '.h5ad':
-            adata = anndata.read(clustering_data_file)
+            clustering_data = anndata.read(clustering_data_file)
         else:
             print('Unrecognized file format for clustering data')
+    else:
+        clustering_data = None
 
     if not os.path.isdir(options.out_dir):
         os.mkdir(options.out_dir)
 
     demultiplex_cell_hashing(adata,
                              pre_existing_clusters=options.pre_existing_clusters,
-                             clustering_data=options.clustering_data,
+                             clustering_data=clustering_data,
                              **params)
     adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
     plot_qc_checks_cell_hashing(adata, fig_path=os.path.join(options.out_dir, options.plot_name))
