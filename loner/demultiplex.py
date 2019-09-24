@@ -330,7 +330,7 @@ def main():
                              pre_existing_clusters=options.pre_existing_clusters,
                              clustering_data=options.clustering_data,
                              **params)
-    adata.write(options.out_dir, "hashing_demultiplexed.h5ad")
+    adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
     if options.plot:
         plot_qc_checks_cell_hashing(adata, os.path.join(options.out_dir, "hashing_qc_plots.png"))
 
