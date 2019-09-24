@@ -1,5 +1,5 @@
 __author__ = 'David Kelley, Nick Bernstein'
-__email__ = 'njbernstein@gmail.com'
+__email__ = 'nicholas@calicolabs.com'
 __version__ = '0.1'
 
-from . import utils
+from . import demultiplex, utils, loner
