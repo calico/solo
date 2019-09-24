@@ -122,7 +122,7 @@ def _calculate_probabilities(z, total_samples):
 def _calculate_llrts(data, doublet_llr_threshold, negative_llr_threshold, total_samples):
     '''
     '''
-    probabilities_for_each_hypothesis, _, insilico_probs, _ = calculate_probabilities(data, total_samples)
+    probabilities_for_each_hypothesis, _, insilico_probs, _ = _calculate_probabilities(data, total_samples)
     dubs = np.zeros(probabilities_for_each_hypothesis.shape[0], dtype=bool)
     negs = np.zeros(probabilities_for_each_hypothesis.shape[0], dtype=bool)
 
