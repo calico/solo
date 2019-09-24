@@ -323,6 +323,14 @@ def main():
     else:
         print('Unrecognized file format')
 
+    if options.clustering_data is not None:
+        clustering_data_file = options.clustering_data
+        clustering_data_ext = os.path.splitext(clustering_data_file)[-1]
+        if clustering_data_ext == '.h5ad':
+            adata = anndata.read(clustering_data_file)
+        else:
+            print('Unrecognized file format for clustering data')
+
     if not os.path.isdir(options.out_dir):
         os.mkdir(options.out_dir)
 
