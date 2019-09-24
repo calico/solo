@@ -98,7 +98,7 @@ def _calculate_probabilities(z, total_samples):
         log_probs_insilico_list = [log_probs_of_insilico_negative, log_probs_of_insilico_singlet, log_probs_of_insilico_doublet]
 
         # calculate probabilties for each hypothesis for each cell
-        z_subset = np.log(z[subset])
+        z_subset = np.log(z[subset] + 1)
         log_signal_signal_probs = np.log(norm.pdf(z_subset[:, signal_sample_idx], *signal_params[:-2], loc=signal_params[-2], scale=signal_params[-1])  + eps)
         signal_noise_params = signal_params_dict[noise_sample_idx]
         log_noise_signal_probs = np.log(norm.pdf(z_subset[:, noise_sample_idx], *signal_noise_params[:-2], loc=signal_noise_params[-2], scale=signal_noise_params[-1]) + eps)
