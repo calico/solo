@@ -29,7 +29,7 @@ def _calculate_probabilities(z, total_samples):
     noise_params_dict = {}
     signal_params_dict = {}
 
-    # for each barcode get and empirical noise and signal distribution parameterization
+    # for each barcode get  empirical noise and signal distribution parameterization
     for x in np.arange(num_of_barcodes):
         sample_barcodes = z[:, x]
         sample_barcodes_noise_idx = np.where(z_arg[:, :num_of_noise_barcodes] == x)[0]
@@ -179,7 +179,7 @@ def demultiplex_cell_hashing(adata: anndata.AnnData,
                              total_samples: int = 10000,
                              pre_existing_clusters: str = None,
                              inplace: bool = True,
-                             resolutions: list = [.1, .25, .5, .75, .9, 1, 2, 5],
+                             resolutions: list = [.25, .5, .75, .9, 1, 2, 5],
                              clustering_data: anndata.AnnData = None,):
     '''Demultiplex cell hashing dataset
 

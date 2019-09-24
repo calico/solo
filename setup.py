@@ -1,8 +1,6 @@
 import sys
-import yaml
 
 from pathlib import Path
-
 from setuptools import setup, find_packages
 
 if sys.version_info < (3,):
@@ -24,7 +22,7 @@ setup(
     author_email=__email__,
     license='Apache',
     python_requires='>=3.6',
-    install_requires=r[l.strip() for l in
+    install_requires=[l.strip() for l in
                        Path('requirements.txt').read_text('utf-8').splitlines()
                        ],
     packages=find_packages(),
