@@ -303,8 +303,8 @@ def main():
                       default=None)
     parser.add_option('-p', dest='pre_existing_clusters',
                       default=None)
-    parser.add_option('-q', dest='plot',
-                      default=False, action='store_true')
+    parser.add_option('-q', dest='plot_name',
+                      default="hashing_qc_plots.png")
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
@@ -331,8 +331,7 @@ def main():
                              clustering_data=options.clustering_data,
                              **params)
     adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
-    if options.plot:
-        plot_qc_checks_cell_hashing(adata, os.path.join(options.out_dir, "hashing_qc_plots.png"))
+    plot_qc_checks_cell_hashing(adata, os.path.join(options.out_dir, options.plot_name))
 
 ###############################################################################
 # __main__
