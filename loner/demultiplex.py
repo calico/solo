@@ -14,17 +14,35 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import calinski_harabasz_score
 
 
-def _calculate_probabilities(z, total_samples):
+def _calculate_probabilities(z, groupings=None):
+    '''
+    '''
+    def gaussian_updates(data, mu_o, std_o):
+        lam_o = 1/(std_o**2)
+        n = len(data)
+        lam = 1/np.var(data) if len(data) > 1 else lam_o
+        lam_n = lam_o + n*lam
+        mu_n = (np.mean(data)*n*lam + mu_o*lam_o)/lam_n if len(data) > 0 else mu_o
+        return mu_n, (1 / (lam_n / (n + 1)))**(1/2)
+
     eps = 1e-15
     # probabilites for negative, singlet, doublets
     probabilities_for_each_hypothesis = np.zeros((z.shape[0], 3))
 
     all_indices = np.empty(z.shape[0])
-    insilico_probs = []
     num_of_barcodes = z.shape[1]
     num_of_noise_barcodes = num_of_barcodes - 2
+
+    #assume log normal
     z = np.log(z + 1)
     z_arg = np.argsort(z, axis=1)
+    z_sort = np.sort(z, axis=1)
+
+    # global signal and noise counts useful for when we have few cells
+    global_signal_counts = np.ravel(z_sort[:, -1])
+    global_noise_counts= np.ravel(z_sort[:, :-2])
+    global_mu_signal_o, global_sigma_signal_o = np.mean(global_signal_counts), np.std(global_signal_counts)
+    global_mu_noise_o, global_sigma_noise_o = np.mean(global_noise_counts), np.std(global_noise_counts)
 
     noise_params_dict = {}
     signal_params_dict = {}
@@ -34,14 +52,14 @@ def _calculate_probabilities(z, total_samples):
         sample_barcodes = z[:, x]
         sample_barcodes_noise_idx = np.where(z_arg[:, :num_of_noise_barcodes] == x)[0]
         sample_barcodes_signal_idx = np.where(z_arg[:, -1] == x)
+
         # get noise and signal counts
         noise_counts = sample_barcodes[sample_barcodes_noise_idx]
         signal_counts = sample_barcodes[sample_barcodes_signal_idx]
 
-        # get parameters of distribution, assuming lognormal
-        noise_param = (np.mean(noise_counts), np.std(noise_counts))
-        signal_param = (np.mean(signal_counts), np.std(signal_counts))
-
+        # get parameters of distribution, assuming lognormal do update from global values
+        noise_param = gaussian_updates(noise_counts, global_mu_noise_o, global_sigma_noise_o)
+        signal_param = gaussian_updates(signal_counts, global_mu_signal_o, global_sigma_signal_o)
         noise_params_dict[x] = noise_param
         signal_params_dict[x] = signal_param
 
@@ -66,37 +84,6 @@ def _calculate_probabilities(z, total_samples):
         noise_params = noise_params_dict[noise_sample_idx]
         signal_params = signal_params_dict[signal_sample_idx]
 
-        # create samples from noise and signal distribution
-        noise_samples = norm.rvs(*noise_params[:-2], loc=noise_params[-2],
-                                 scale=noise_params[-1], size=total_samples)
-        signal_samples = norm.rvs(*signal_params[:-2], loc=signal_params[-2],
-                                  scale=signal_params[-1], size=total_samples)
-
-        # make in silico samples
-        in_silico_samples = np.hstack([noise_samples, signal_samples])
-
-        # get probabilities for each in silico cells
-        insilico_signal_probs = norm.pdf(np.ravel(in_silico_samples),
-                                         *signal_params[:-2],
-                                         loc=signal_params[-2],
-                                         scale=signal_params[-1])
-        insilico_signal_probs = np.transpose(np.reshape(insilico_signal_probs,
-                                                        (2, total_samples)))
-        insilico_noise_probs = norm.pdf(np.ravel(in_silico_samples),
-                                        *noise_params[:-2],
-                                        loc=noise_params[-2],
-                                        scale=noise_params[-1])
-        insilico_noise_probs = np.transpose(np.reshape(insilico_noise_probs,
-                                                       (2, total_samples)))
-        log_insilico_signal_probs = np.log(insilico_signal_probs + eps)
-        log_insilico_noise_probs = np.log(insilico_noise_probs + eps)
-
-        # calculate probability of each hypothesis for in silico cells
-        log_probs_of_insilico_negative = np.sum([log_insilico_noise_probs[:, -2], log_insilico_noise_probs[:, -1]], axis=0)
-        log_probs_of_insilico_singlet = np.sum([log_insilico_noise_probs[:, -2], log_insilico_signal_probs[:, -1]], axis=0)
-        log_probs_of_insilico_doublet = np.sum([log_insilico_signal_probs[:, -2], log_insilico_signal_probs[:, -1]], axis=0)
-        log_probs_insilico_list = [log_probs_of_insilico_negative, log_probs_of_insilico_singlet, log_probs_of_insilico_doublet]
-
         # calculate probabilties for each hypothesis for each cell
         z_subset = z[subset]
         log_signal_signal_probs = np.log(norm.pdf(z_subset[:, signal_sample_idx], *signal_params[:-2], loc=signal_params[-2], scale=signal_params[-1])  + eps)
@@ -115,38 +102,17 @@ def _calculate_probabilities(z, total_samples):
         # the in silico sample
         for prob_idx, log_prob in enumerate(log_probs_list):
             probabilities_for_each_hypothesis[indices, prob_idx] = log_prob
-        insilico_probs.append(log_probs_insilico_list)
-    return probabilities_for_each_hypothesis, all_indices, insilico_probs, counter_to_barcode_combo
+    return probabilities_for_each_hypothesis, all_indices, counter_to_barcode_combo
 
 
-def _calculate_llrts(data, doublet_llr_threshold, negative_llr_threshold, total_samples):
+def _calculate_bayes_rule(data, priors, groupings=None):
     '''
     '''
-    probabilities_for_each_hypothesis, _, insilico_probs, _ = _calculate_probabilities(data, total_samples)
-    dubs = np.zeros(probabilities_for_each_hypothesis.shape[0], dtype=bool)
-    negs = np.zeros(probabilities_for_each_hypothesis.shape[0], dtype=bool)
-
-    # get null distribution from all insilico examples
-    all_insilico_llrt_d_s = np.ravel(np.array(insilico_probs)[:, 2]) - np.ravel(np.array(insilico_probs)[:, 1])
-    all_insilico_llrt_n_s = np.ravel(np.array(insilico_probs)[:, 0]) - np.ravel(np.array(insilico_probs)[:, 1])
-    dub_thresh = np.percentile(all_insilico_llrt_d_s, doublet_llr_threshold)
-    neg_thresh = np.percentile(all_insilico_llrt_n_s, negative_llr_threshold)
-
-    # do log lrt test for doublet over singlet
-    llrt_d_s = probabilities_for_each_hypothesis[:,2] - probabilities_for_each_hypothesis[:,1]
-
-    # do log lrt test for negative over singlet
-    llrt_n_s = probabilities_for_each_hypothesis[:,0] - probabilities_for_each_hypothesis[:,1]
-
-    # identify dubs and singlets
-    dubs = llrt_d_s > dub_thresh
-    negs = llrt_n_s > neg_thresh
-    return {"llrt_d_s": llrt_d_s,
-            "llrt_n_s": llrt_n_s,
-            "dubs": dubs,
-            "negs": negs,
-            "dub_thresh": dub_thresh,
-            "neg_thresh": neg_thresh}
+    log_likelihoods_for_each_hypothesis, _, _ = _calculate_probabilities(data, groupings)
+    probs_hypotheses = np.exp(log_likelihoods_for_each_hypothesis) * np.array(priors) / np.prod(np.multiply(np.exp(log_likelihoods_for_each_hypothesis), np.array(priors)), axis=1)[:, None]
+    most_likeli_hypothesis = np.argmax(probs_hypotheses, axis=1)
+    return {"most_likeli_hypothesis": most_likeli_hypothesis,
+            "probs_hypotheses": probs_hypotheses}
 
 
 def _get_clusters(clustering_data: anndata.AnnData,
@@ -173,85 +139,90 @@ def _get_clusters(clustering_data: anndata.AnnData,
     return clustering_data.obs['best_leiden'].values
 
 
-def demultiplex_cell_hashing(adata: anndata.AnnData,
-                             negative_p_value: float = .00001,
-                             doublet_p_value: float = .0025,
-                             total_samples: int = 10000,
+def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
+                             priors: list = [.01, .8, .19],
                              pre_existing_clusters: str = None,
+                             clustering_data: anndata.AnnData = None,
+                             resolutions: list = [.1, .25, .5, .75, 1],
                              inplace: bool = True,
-                             resolutions: list = [.25, .5, .75, .9, 1, 2, 5],
-                             clustering_data: anndata.AnnData = None,):
+                             ):
     '''Demultiplex cell hashing dataset
 
     Attributes
     ----------
-    adata : Anndata
+    cell_hashing_adata : anndata.AnnData
         Anndata object filled only with hashing counts
-    negative_p_value : float
+    priors : list,
         P-value threshold for calling a cell a negative
-    doublet_p_value : float
-        P-value threshold for calling a cell a doublet
-    total_samples : int
-        total  number of sample to generate an empirical distribution for testing
-    on_clusters: bool, iterable
+    pre_existing_clusters : str
+        column in cell_hashing_adata for how to break up demultiplexing
+    clustering_data : anndata.AnnData
+        transcriptional data for clustering
+    resolutions : list
+        clustering resolutions for leiden
     inplace : bool
         To do operation in place
     '''
 
     if clustering_data is not None:
         print("This may take awhile we are running clustering at {} different resolutions".format(len(resolutions)))
-        if not all(clustering_data.obs_names == adata.obs_names):
-            raise ValueError("clustering_data and cell hashing adata must have same index")
-        adata.obs["best_leiden"] = _get_clusters(clustering_data, resolutions)
+        if not all(clustering_data.obs_names == cell_hashing_adata.obs_names):
+            raise ValueError("clustering_data and cell hashing cell_hashing_adata must have same index")
+        cell_hashing_adata.obs["best_leiden"] = _get_clusters(clustering_data, resolutions)
 
-    negative_llr_threshold = 100 - negative_p_value * 100
-    doublet_llr_threshold = 100 - doublet_p_value * 100
-    data = adata.X
-    num_of_cells = adata.shape[0]
-    results = pd.DataFrame(np.zeros((num_of_cells, 7)),
-                           columns=['llrt_d_s',
-                                    'llrt_n_s',
-                                    'dubs',
-                                    'negs',
-                                    'dub_thresh',
-                                    'neg_thresh',
-                                    'cluster_feature'],
-                           index=adata.obs_names)
+    data = cell_hashing_adata.X
+    num_of_cells = cell_hashing_adata.shape[0]
+    results = pd.DataFrame(np.zeros((num_of_cells, 6)),
+                           columns=['most_likeli_hypothesis',
+                                    'probs_hypotheses',
+                                    'cluster_feature',
+                                    'negative_hypothesis_probability',
+                                    'singlet_hypothesis_probability',
+                                    'doublet_hypothesis_probability',],
+                           index=cell_hashing_adata.obs_names)
     if clustering_data is not None or pre_existing_clusters is not None:
         cluster_features = "best_leiden" if pre_existing_clusters is None else pre_existing_clusters
-        unique_cluster_features = adata.obs[cluster_features].drop_duplicates()
+        unique_cluster_features = cell_hashing_adata.obs[cluster_features].drop_duplicates()
         for cluster_feature in unique_cluster_features:
-            cluster_feature_bool_vector = adata.obs[cluster_features] == cluster_feature
-            llrts_dict = _calculate_llrts(data[cluster_feature_bool_vector], doublet_llr_threshold, negative_llr_threshold, total_samples)
-            for k, v in llrts_dict.items():
-                results.loc[cluster_feature_bool_vector, k] = v
+            cluster_feature_bool_vector = cell_hashing_adata.obs[cluster_features] == cluster_feature
+            posterior_dict = _calculate_bayes_rule(data[cluster_feature_bool_vector], priors)
+            results.loc[cluster_feature_bool_vector, 'most_likeli_hypothesis'] = posterior_dict['most_likeli_hypothesis']
             results.loc[cluster_feature_bool_vector, 'cluster_feature'] = cluster_feature
+            results.loc[cluster_feature_bool_vector, 'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
+            results.loc[cluster_feature_bool_vector, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
+            results.loc[cluster_feature_bool_vector, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
     else:
-        llrts_dict = _calculate_llrts(data, doublet_llr_threshold, negative_llr_threshold, total_samples)
-        for k, v in llrts_dict.items():
-            results.loc[:, k] = v
+        posterior_dict = _calculate_bayes_rule(data, priors)
+        results.loc[:, 'most_likeli_hypothesis'] = posterior_dict['most_likeli_hypothesis']
         results.loc[:, 'cluster_feature'] = 0
-    adata.obs = pd.merge(adata.obs, results, left_index=True, right_index=True)
-    adata.obs["Classification"] = None
-    adata.obs.loc[results['dubs'], "Classification"] = "Doublet"
+        results.loc[:, 'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
+        results.loc[:, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
+        results.loc[:, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
 
-    # note this will overwrite the doublet classification should be rare
-    adata.obs.loc[results['negs'], "Classification"] = "Negative"
+    cell_hashing_adata.obs['most_likeli_hypothesis'] = results.loc[cell_hashing_adata.obs_names, 'most_likeli_hypothesis']
+    cell_hashing_adata.obs['cluster_feature'] = results.loc[cell_hashing_adata.obs_names, 'cluster_feature']
+    cell_hashing_adata.obs['negative_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'negative_hypothesis_probability']
+    cell_hashing_adata.obs['singlet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'singlet_hypothesis_probability']
+    cell_hashing_adata.obs['doublet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'doublet_hypothesis_probability']
 
-    all_sings = ~(results['dubs'] | results['negs'])
-    singlet_sample_index = np.argmax(data[all_sings], axis=1)
-    adata.obs.loc[all_sings, "Classification"] = adata.var_names[singlet_sample_index]
-    return adata if not inplace else None
+    cell_hashing_adata.obs["Classification"] = None
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likeli_hypothesis"] == 2, "Classification"] = "Doublet"
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likeli_hypothesis"] == 0, "Classification"] = "Negative"
+    all_sings = cell_hashing_adata.obs["most_likeli_hypothesis"] == 1
+    singlet_sample_index = np.argmax(cell_hashing_adata.X[all_sings], axis=1)
+    cell_hashing_adata.obs.loc[all_sings, "Classification"] = cell_hashing_adata.var_names[singlet_sample_index]
+
+    return cell_hashing_adata if not inplace else None
 
 
-def plot_qc_checks_cell_hashing(adata: anndata.AnnData,
+def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
                                 alpha: float = .05,
                                 fig_path: str = None):
     '''Plot demultiplex cell hashing results
 
     Attributes
     ----------
-    adata : Anndata
+    cell_hashing_adata : Anndata
         Anndata object filled only with hashing counts
     alpha : float
         Tranparency of scatterplot points
@@ -259,33 +230,37 @@ def plot_qc_checks_cell_hashing(adata: anndata.AnnData,
         Path to save figure
     '''
 
-    cell_hashing_demultiplexing = adata.obs
-    cell_hashing_demultiplexing['log_counts'] = np.log(np.sum(adata.X, axis=1))
+    cell_hashing_demultiplexing = cell_hashing_adata.obs
+    cell_hashing_demultiplexing['log_counts'] = np.log(np.sum(cell_hashing_adata.X, axis=1))
     number_of_clusters = cell_hashing_demultiplexing["cluster_feature"].drop_duplicates().shape[0]
-    fig, all_axes = plt.subplots(number_of_clusters, 3, figsize=(30, 10 * number_of_clusters))
+    fig, all_axes = plt.subplots(number_of_clusters, 4, figsize=(40, 10 * number_of_clusters))
     counter = 0
     for cluster_feature, group in cell_hashing_demultiplexing.groupby("cluster_feature"):
         if number_of_clusters > 1:
             axes = all_axes[counter]
         else:
             axes = all_axes
+        cluster_bool_vector = cell_hashing_demultiplexing["cluster_feature"] == cluster_feature
+
         ax = axes[0]
-        ax.plot(group["log_counts"], group['llrt_n_s'], 'bo', alpha=alpha)
-        ax.set_title("LLR n/s vs log hashing counts")
-        ax.set_ylabel("LLR negative - singlet")
+        ax.plot(group["log_counts"], group['negative_hypothesis_probability'], 'bo', alpha=alpha)
+        ax.set_title("Probability of negative hypothesis vs log hashing counts")
+        ax.set_ylabel("Probability of negative hypothesis")
         ax.set_xlabel("Log hashing counts")
-        ax.axhline(group['neg_thresh'][0], label="LLR negative threshold")
-        ax.legend()
 
         ax = axes[1]
-        ax.plot(group["log_counts"], group['llrt_d_s'], 'bo', alpha=alpha)
-        ax.set_title("LLR d/s vs log hashing counts")
-        ax.set_ylabel("LLR doublet - singlet")
+        ax.plot(group["log_counts"],  group['singlet_hypothesis_probability'], 'bo', alpha=alpha)
+        ax.set_title("Probability of singlet hypothesis vs log hashing counts")
+        ax.set_ylabel("Probability of singlet hypothesis")
         ax.set_xlabel("Log hashing counts")
-        ax.axhline(group['dub_thresh'][0], label="LLR doublet threshold")
-        ax.legend()
 
         ax = axes[2]
+        ax.plot(group["log_counts"],  group['doublet_hypothesis_probability'], 'bo', alpha=alpha)
+        ax.set_title("Probability of doublet hypothesis vs log hashing counts")
+        ax.set_ylabel("Probability of doublet hypothesis")
+        ax.set_xlabel("Log hashing counts")
+
+        ax = axes[3]
         group['Classification'].value_counts().plot.bar(ax=ax)
         ax.set_title("Count of each samples classification")
         counter += 1
@@ -319,7 +294,7 @@ def main():
 
     data_ext = os.path.splitext(data_file)[-1]
     if data_ext == '.h5ad':
-        adata = anndata.read(data_file)
+        cell_hashing_adata = anndata.read(data_file)
     else:
         print('Unrecognized file format')
 
@@ -336,12 +311,12 @@ def main():
     if not os.path.isdir(options.out_dir):
         os.mkdir(options.out_dir)
 
-    demultiplex_cell_hashing(adata,
+    demultiplex_cell_hashing(cell_hashing_adata,
                              pre_existing_clusters=options.pre_existing_clusters,
                              clustering_data=clustering_data,
                              **params)
-    adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
-    plot_qc_checks_cell_hashing(adata, fig_path=os.path.join(options.out_dir, options.plot_name))
+    cell_hashing_adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
+    plot_qc_checks_cell_hashing(cell_hashing_adata, fig_path=os.path.join(options.out_dir, options.plot_name))
 
 ###############################################################################
 # __main__
