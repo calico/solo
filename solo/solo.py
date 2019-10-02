@@ -41,7 +41,7 @@ def main():
     parser.add_option('-d', dest='doublet_depth',
                       default=2., type='float',
                       help='Depth multiplier for a doublet relative to the \
-                      average of its constituents [Default: % default]')
+                      average of its constituents [Default: %default]')
     parser.add_option('-g', dest='gpu',
                       default=False, action='store_true',
                       help='Run on GPU [Default: %default]')
@@ -57,7 +57,7 @@ def main():
                       help='Experimentally defined doublets tsv file',
                       type=str)
     parser.add_option('-t', dest='doublet_type', help="Please enter \
-                      multinomial, average, or sum",
+                      multinomial, average, or sum [Default: %default]",
                       default="multinomial",
                       choices=['multinomial', 'average', 'sum'])
     parser.add_option('-e', dest='expected_number_of_doublets',

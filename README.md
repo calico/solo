@@ -1,18 +1,18 @@
-# loner
+# solo
 ### Why
 Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles.
 
-**_loner_** is a neural network framework to classify doublets, so that you can remove them from your data and clean your single cell profile.
+**_solo_** is a neural network framework to classify doublets, so that you can remove them from your data and clean your single cell profile.
 
 ### How
 Run the following to clone and set up ve.
-`git clone git@github.com:calico/loner.git && cd loner && conda env create -n loner && conda activate loner && pip install -e requirements.txt`
+`git clone git@github.com:calico/solo.git && cd solo && conda env create -n solo && conda activate solo && pip install -e requirements.txt`
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
-Usage: `./loner.py [options] <model_json> <data_file>`
+Usage: `./solo.py [options] <model_json> <data_file>`
 
-For help do: `./loner.py -h`
+For help do: `./solo.py -h`
 
 model_json example:
 ```
