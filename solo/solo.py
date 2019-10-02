@@ -20,11 +20,11 @@ from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
 
-from utils import create_average_doublet, create_summed_doublet, \
+from .utils import create_average_doublet, create_summed_doublet, \
     create_multinomial_doublet, make_gene_expression_dataset
 
 '''
-loner.py
+solo.py
 
 Simulate doublets, train a VAE, and then a classifier on top.
 '''
@@ -46,7 +46,7 @@ def main():
                       default=False, action='store_true',
                       help='Run on GPU [Default: %default]')
     parser.add_option('-o', dest='out_dir',
-                      default='loner_out')
+                      default='solo_out')
     parser.add_option('-r', dest='doublet_ratio',
                       default=2., type='float',
                       help='Ratio of doublets to true \
@@ -98,16 +98,18 @@ def main():
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
                                     scvi_data.gene_names)
+        known_doublet_data.labels = np.ones(known_doublet_data.X.shape[0])
         singlet_scvi_data = make_gene_expression_dataset(
                                                  scvi_data.X[~known_doublets],
                                                  scvi_data.gene_names)
-
+        singlet_num_cells, _ = singlet_scvi_data.X.shape
     else:
         known_doublet_data = None
         singlet_num_cells = num_cells
         known_doublets = np.zeros(num_cells, dtype=bool)
         singlet_scvi_data = scvi_data
-    singlet_num_cells, _ = singlet_scvi_data.X.shape
+    singlet_scvi_data.labels = np.zeros(singlet_scvi_data.X.shape[0])
+    scvi_data.labels = known_doublets.astype(int)
     ##################################################
     # parameters
 
@@ -185,14 +187,6 @@ def main():
     ##################################################
     # simulate doublets
 
-    cell_depths = singlet_scvi_data.X.sum(axis=1)
-    num_doublets = int(options.doublet_ratio * singlet_num_cells)
-
-    if known_doublet_data is not None:
-        num_doublets -= known_doublet_data.X.shape[0]
-        # make sure we are making a non negative amount of doublets
-        assert num_doublets >= 0
-    X_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     non_zero_indexes = np.where(singlet_scvi_data.X > 0)
     cells = non_zero_indexes[0]
     genes = non_zero_indexes[1]
@@ -208,25 +202,35 @@ def main():
     else:
         doublet_function = create_multinomial_doublet
 
+    cell_depths = singlet_scvi_data.X.sum(axis=1)
+    num_doublets = int(options.doublet_ratio * singlet_num_cells)
+    if known_doublet_data is not None:
+        num_doublets -= known_doublet_data.X.shape[0]
+        # make sure we are making a non negative amount of doublets
+        assert num_doublets >= 0
+
+    in_silico_doublets = np.zeros((num_doublets, num_genes), dtype='float32')
     # for desired # doublets
     for di in range(num_doublets):
         # sample two cells
         i, j = np.random.choice(singlet_num_cells, size=2)
 
         # generate doublets
-        X_doublets[di, :] = \
+        in_silico_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=options.doublet_depth,
                              cell_depths=cell_depths, cells_ids=cells_ids)
+
 
     # merge datasets
     # we can maybe up sample the known doublets
     # concatentate
     classifier_data = GeneExpressionDataset()
     classifier_data.populate_from_data(
-                    X=np.vstack([scvi_data.X, X_doublets]),
+                    X=np.vstack([scvi_data.X,
+                                 in_silico_doublets]),
                     labels=np.hstack([np.ravel(scvi_data.labels),
-                                      np.ones(X_doublets.shape[0])]),
+                                      np.ones(in_silico_doublets.shape[0])]),
                     remap_attributes=False)
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
@@ -321,18 +325,18 @@ def main():
 
     ## TODO: figure out this function
     if options.expected_number_of_doublets is not None:
-        loner_scores = order_score[:num_cells]
-        k = len(loner_scores) - options.expected_number_of_doublets
-        if options.expected_number_of_doublets / len(loner_scores) > .5:
+        solo_scores = order_score[:num_cells]
+        k = len(solo_scores) - options.expected_number_of_doublets
+        if options.expected_number_of_doublets / len(solo_scores) > .5:
             print("""Make sure you actually expect more than half your cells
                    to be doublets. If not change your
                    -e parameter value""")
         assert k > 0
-        idx = np.argpartition(loner_scores, k)
-        threshold = np.max(loner_scores[idx[:k]])
+        idx = np.argpartition(solo_scores, k)
+        threshold = np.max(solo_scores[idx[:k]])
     else:
         threshold = .5
-    is_loner_doublet = order_score > threshold
+    is_solo_doublet = order_score > threshold
 
     # plot distributions
     plt.figure()
@@ -351,7 +355,7 @@ def main():
     plt.close()
 
     is_doublet = known_doublets
-    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet[:num_cells])[0]
+    new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
     is_doublet[new_doublets_idx] = True
 
     np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
