@@ -135,6 +135,7 @@ def _get_clusters(clustering_data: anndata.AnnData,
         sc.tl.leiden(clustering_data, resolution=resolution)
 
         ch_score = calinski_harabaz_score(clustering_data.X, clustering_data.obs['leiden'])
+
         if ch_score > best_ch_score:
             clustering_data.obs['best_leiden'] = clustering_data.obs['leiden'].values
             best_ch_score = ch_score
