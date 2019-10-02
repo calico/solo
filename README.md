@@ -6,13 +6,7 @@ Cells subjected to single cell RNA-seq have been through a lot, and they'd reall
 
 ### Quick set up
 Run the following to clone and set up ve.
-`git clone git@github.com:calico/solo.git && cd solo && conda env create -n solo python=3.6 && conda activate solo && pip install -e .`
 
-If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
-
-### How to computationally identify doublets
-
-Data file can be h5ad or loom file format, and should be the raw counts of your cells by genes matrix. 
 
 ```Usage: solo [options] <model_json> <data_file>
 

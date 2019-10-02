@@ -1,6 +1,5 @@
 import numpy as np
 
-
 from scvi.dataset import GeneExpressionDataset
 from scipy.stats import multinomial
 

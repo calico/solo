@@ -23,4 +23,4 @@ umap-learn==0.3.8
 scikit-learn==0.19.1
 numba==0.45
 scvi==0.4.1
-
+dataclasses==0.6

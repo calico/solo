@@ -134,7 +134,8 @@ def _get_clusters(clustering_data: anndata.AnnData,
     for resolution in resolutions:
         sc.tl.leiden(clustering_data, resolution=resolution)
 
-        ch_score = calinski_harabasz_score(clustering_data.X, clustering_data.obs['leiden'])
+        ch_score = calinski_harabaz_score(clustering_data.X, clustering_data.obs['leiden'])
+
         if ch_score > best_ch_score:
             clustering_data.obs['best_leiden'] = clustering_data.obs['leiden'].values
             best_ch_score = ch_score
@@ -272,16 +273,22 @@ def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
 
 
 def main():
-    usage = 'usage: %prog [options] <model_json> <data_file>'
+    usage = 'usage: %prog [options] <model_json> <cell_hashing_data_file>'
     parser = OptionParser(usage)
     parser.add_option('-o', dest='out_dir',
-                      default='solo_demultiplex')
+                      default='solo_demultiplex',
+                      help='Output directory for results [Default: %default]')
     parser.add_option('-c', dest='clustering_data',
-                      default=None)
+                      default=None,
+                      help='h5ad file with count transcriptional data to \
+                      perform clustering on')
     parser.add_option('-p', dest='pre_existing_clusters',
-                      default=None)
+                      default=None,
+                      help='column in cell_hashing_data_file.obs to specifying\
+                      different cell types or clusters')
     parser.add_option('-q', dest='plot_name',
-                      default="hashing_qc_plots.png")
+                      default="hashing_qc_plots.png",
+                      help='name of plot to output [Default: %default]')
     (options, args) = parser.parse_args()
 
     if len(args) != 2:
