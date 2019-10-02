@@ -16,7 +16,7 @@ Options:
                         average of its constituents [Default: 2.0]
   -g                    Run on GPU [Default: False]
   -o OUT_DIR            
-  -r DOUBLET_RATIO      Ratio of doublets to true                       cells
+  -r DOUBLET_RATIO      Ratio of doublets to true cells
                         [Default: 2.0]
   -s SEED               Seed VAE model parameters
   -k KNOWN_DOUBLETS     Experimentally defined doublets tsv file
@@ -60,10 +60,10 @@ Outputs:
 
 Demultiplexing takes as input an h5ad file with only hashing counts. Counts can be obtained from your fastqs by using kite. See tutorial here: https://github.com/pachterlab/kite
 
-```Usage: demultiplex [options] <model_json> <data_file>
+```Usage: demultiplex [options] <model_json> <cell_hashing_data_file>
 
 Options:
-  -h, --help            show this help message and exit
+  -h, --help  show this help message and exit
   -o OUT_DIR            
   -c CLUSTERING_DATA    
   -p PRE_EXISTING_CLUSTERS
