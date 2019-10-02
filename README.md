@@ -32,19 +32,19 @@ model_json example:
 
 Outputs:
    output directory structure
-                        *  `is_doublet.npy`   
-                        * `vae.pt`
-                        *  `classifier.pt`
-                         * `latent.npy`              
-                         * `preds.npy`
-                         * `scores.npy`	
-                         * `real_cells_dist.pdf`  
-                        *  `accuracy.pdf` 
-                        *  `train_v_test_dist.pdf`
-                        *  `roc.pdf`	
-                        *  `scores_sim.npy`
-                        *  `preds_sim.npy`	
-                        *  `is_doublet_sim.npy` 
+ Markup : *  `is_doublet.npy`   
+          * `vae.pt`
+          *  `classifier.pt`
+          * `latent.npy`              
+          * `preds.npy`
+          * `scores.npy`	
+          * `real_cells_dist.pdf`  
+          *  `accuracy.pdf` 
+          *  `train_v_test_dist.pdf`
+          *  `roc.pdf`	
+          *  `scores_sim.npy`
+          *  `preds_sim.npy`	
+          *  `is_doublet_sim.npy` 
 Data file can be h5ad or loom file format.
 
 ### How to identify demultiplex cell hashing data
