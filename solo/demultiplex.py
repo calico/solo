@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import calinski_harabasz_score
 
 
-def _calculate_probabilities(z, groupings=None):
+def _calculate_probabilities(z):
     '''
     '''
     def gaussian_updates(data, mu_o, std_o):
@@ -106,10 +106,10 @@ def _calculate_probabilities(z, groupings=None):
     return probabilities_for_each_hypothesis, all_indices, counter_to_barcode_combo
 
 
-def _calculate_bayes_rule(data, priors, groupings=None):
+def _calculate_bayes_rule(data, priors):
     '''
     '''
-    log_likelihoods_for_each_hypothesis, _, _ = _calculate_probabilities(data, groupings)
+    log_likelihoods_for_each_hypothesis, _, _ = _calculate_probabilities(data)
     probs_hypotheses = np.exp(log_likelihoods_for_each_hypothesis) * np.array(priors) / np.prod(np.multiply(np.exp(log_likelihoods_for_each_hypothesis), np.array(priors)), axis=1)[:, None]
     most_likeli_hypothesis = np.argmax(probs_hypotheses, axis=1)
     return {"most_likeli_hypothesis": most_likeli_hypothesis,
@@ -141,7 +141,7 @@ def _get_clusters(clustering_data: anndata.AnnData,
 
 
 def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
-                             priors: list = [.01, .8, .19],
+                             priors: list = [.01, .5, .49],
                              pre_existing_clusters: str = None,
                              clustering_data: anndata.AnnData = None,
                              resolutions: list = [.1, .25, .5, .75, 1],
