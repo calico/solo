@@ -20,11 +20,11 @@ from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
 
-from utils import create_average_doublet, create_summed_doublet, \
+from .utils import create_average_doublet, create_summed_doublet, \
     create_multinomial_doublet, make_gene_expression_dataset
 
 '''
-loner.py
+solo.py
 
 Simulate doublets, train a VAE, and then a classifier on top.
 '''
@@ -46,7 +46,7 @@ def main():
                       default=False, action='store_true',
                       help='Run on GPU [Default: %default]')
     parser.add_option('-o', dest='out_dir',
-                      default='loner_out')
+                      default='solo_out')
     parser.add_option('-r', dest='doublet_ratio',
                       default=2., type='float',
                       help='Ratio of doublets to true \
@@ -325,18 +325,18 @@ def main():
 
     ## TODO: figure out this function
     if options.expected_number_of_doublets is not None:
-        loner_scores = order_score[:num_cells]
-        k = len(loner_scores) - options.expected_number_of_doublets
-        if options.expected_number_of_doublets / len(loner_scores) > .5:
+        solo_scores = order_score[:num_cells]
+        k = len(solo_scores) - options.expected_number_of_doublets
+        if options.expected_number_of_doublets / len(solo_scores) > .5:
             print("""Make sure you actually expect more than half your cells
                    to be doublets. If not change your
                    -e parameter value""")
         assert k > 0
-        idx = np.argpartition(loner_scores, k)
-        threshold = np.max(loner_scores[idx[:k]])
+        idx = np.argpartition(solo_scores, k)
+        threshold = np.max(solo_scores[idx[:k]])
     else:
         threshold = .5
-    is_loner_doublet = order_score > threshold
+    is_solo_doublet = order_score > threshold
 
     # plot distributions
     plt.figure()
@@ -355,7 +355,7 @@ def main():
     plt.close()
 
     is_doublet = known_doublets
-    new_doublets_idx = np.where(~(is_doublet) & is_loner_doublet[:num_cells])[0]
+    new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
     is_doublet[new_doublets_idx] = True
 
     np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
