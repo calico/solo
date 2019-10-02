@@ -10,7 +10,8 @@ Run the following to clone and set up ve.
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
-### How
+### How to computationally identify doublets
+
 Usage: `solo [options] <model_json> <data_file>`
 
 For help do: `solo -h`
@@ -29,7 +30,24 @@ model_json example:
 }
 ```
 
+Outputs:
+   output directory structure
+                        *  `is_doublet.npy`   
+                        * `vae.pt`
+                        *  `classifier.pt`
+                         * `latent.npy`              
+                         * `preds.npy`
+                         * `scores.npy`	
+                         * `real_cells_dist.pdf`  
+                        *  `accuracy.pdf` 
+                        *  `train_v_test_dist.pdf`
+                        *  `roc.pdf`	
+                        *  `scores_sim.npy`
+                        *  `preds_sim.npy`	
+                        *  `is_doublet_sim.npy` 
 Data file can be h5ad or loom file format.
+
+### How to identify demultiplex cell hashing data
 
 Usage: `demultiplex [options] <model_json> <data_file>`
 
@@ -42,4 +60,8 @@ model_json example:
 }
 ```
 
-Data file can be h5ad or loom file format.
+Outputs: 
+  output_dir solo_demultiplex/
+      hashing_demultiplexed.h5ad
+      hashing_qc_plots.png
+Data file can be h5ad.
