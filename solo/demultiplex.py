@@ -11,7 +11,7 @@ import scanpy as sc
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import calinski_harabasz_score
+from sklearn.metrics import calinski_harabaz_score
 
 
 def _calculate_probabilities(z):

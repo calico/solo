@@ -14,10 +14,13 @@ pyparsing==2.4.0
 python-dateutil==2.8.0
 pytz==2019.1
 scanpy==1.4.3
-scvi==0.4.1
 seaborn==0.9.0
 six==1.12.0
 statsmodels==0.9.0
 tables==3.5.1
 tqdm==4.32.1
 umap-learn==0.3.8
+scikit-learn==0.19.1
+numba==0.45
+scvi==0.4.1
+

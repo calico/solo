@@ -27,7 +27,8 @@ setup(
                        ],
     packages=find_packages(),
     entry_points=dict(
-        console_scripts=['solo=solo.solo:main'],
+        console_scripts=['solo=solo.solo:main',
+                         'demultiplex=solo.demultiplex:main'],
     ),
     classifiers=[
         'Environment :: Console',
