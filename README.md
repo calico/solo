@@ -12,20 +12,22 @@ If you don't have conda follow the instructions here: https://docs.conda.io/proj
 
 ### How to computationally identify doublets
 
+Data file can be h5ad or loom file format, and should be the raw counts of your cells by genes matrix. 
+
 ```Usage: solo [options] <model_json> <data_file>
 
 Options:
   -h, --help            show this help message and exit
   -d DOUBLET_DEPTH      Depth multiplier for a doublet relative to the
-                        average of its constituents [Default: % default]
+                        average of its constituents [Default: 2.0]
   -g                    Run on GPU [Default: False]
   -o OUT_DIR            
   -r DOUBLET_RATIO      Ratio of doublets to true                       cells
                         [Default: 2.0]
   -s SEED               Seed VAE model parameters
   -k KNOWN_DOUBLETS     Experimentally defined doublets tsv file
-  -t DOUBLET_TYPE       Please enter                       multinomial,
-                        average, or sum
+  -t DOUBLET_TYPE       Please enter multinomial,
+                        average, or sum [Default: multinomial]
   -e EXPECTED_NUMBER_OF_DOUBLETS
                         Experimentally expected number of doublets
 ```
@@ -59,7 +61,6 @@ Outputs:
 *  `preds_sim.npy`	see above but for simulated doublets
 *  `is_doublet_sim.npy` see above but for simulated doublets
 
-Data file can be h5ad or loom file format.
 
 ### How to identify demultiplex cell hashing data CLI
 
@@ -86,7 +87,6 @@ Outputs:
 *  `hashing_demultiplexed.h5ad` anndata with demultiplexing information in .obs
 *  `hashing_qc_plots.png` plots of probabilites for each cell
 
-Data file can be h5ad.
 
 ### How to identify demultiplex cell hashing data in line
 
@@ -95,5 +95,21 @@ Data file can be h5ad.
 >>> import anndata
 >>> cell_hashing_data = anndata.read("cell_hashing_counts.h5ad")
 >>> demultiplex.demultiplex_cell_hashing(cell_hashing_data) 
+>>> cell_hashing_data.obs.head()
+                  most_likeli_hypothesis  cluster_feature  negative_hypothesis_probability  singlet_hypothesis_probability  doublet_hypothesis_probability         Classification
+index                                                                                                                                                                            
+CCTTTCTGTCCGAACC                       2                0                     1.203673e-16                        0.000002                        0.999998                Doublet
+CTGATAGGTGACTCAT                       1                0                     1.370633e-09                        0.999920                        0.000080  BatchF-GTGTGACGTATT_x
+AGCTCTCGTTGTCTTT                       1                0                     2.369380e-13                        0.996992                        0.003008  BatchE-GAGGCTGAGCTA_x
+GTGCGGTAGCGATGAC                       1                0                     1.579405e-09                        0.999879                        0.000121  BatchB-ACATGTTACCGT_x
+AAATGCCTCTAACCGA                       1                0                     1.867626e-13                        0.999707                        0.000293  BatchB-ACATGTTACCGT_x
 >>> demultiplex.plot_qc_checks_cell_hashing(cell_hashing_data)
 ```
+
+
+* `most_likeli_hypothesis` 0 == Negative, 1 == Singlet, 2 == Doublet
+* `cluster_feature` how the cell hashing data was divided if specified or done automatically by giving a cell by genes anndata object to the `cluster_data` argument when calling `demultiplex_cell_hashing`
+* `negative_hypothesis_probability`  
+* `singlet_hypothesis_probability`  
+* `doublet_hypothesis_probability`         
+* `Classification` The sample of origin for the cell or whether it was a negative or doublet cell.
