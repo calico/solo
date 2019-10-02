@@ -18,6 +18,7 @@ def _calculate_probabilities(z, groupings=None):
     '''
     '''
     def gaussian_updates(data, mu_o, std_o):
+        # https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
         lam_o = 1/(std_o**2)
         n = len(data)
         lam = 1/np.var(data) if len(data) > 1 else lam_o
@@ -33,14 +34,14 @@ def _calculate_probabilities(z, groupings=None):
     num_of_barcodes = z.shape[1]
     num_of_noise_barcodes = num_of_barcodes - 2
 
-    #assume log normal
+    # assume log normal
     z = np.log(z + 1)
     z_arg = np.argsort(z, axis=1)
     z_sort = np.sort(z, axis=1)
 
     # global signal and noise counts useful for when we have few cells
     global_signal_counts = np.ravel(z_sort[:, -1])
-    global_noise_counts= np.ravel(z_sort[:, :-2])
+    global_noise_counts = np.ravel(z_sort[:, :-2])
     global_mu_signal_o, global_sigma_signal_o = np.mean(global_signal_counts), np.std(global_signal_counts)
     global_mu_noise_o, global_sigma_noise_o = np.mean(global_noise_counts), np.std(global_noise_counts)
 
@@ -180,6 +181,8 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
                                     'singlet_hypothesis_probability',
                                     'doublet_hypothesis_probability',],
                            index=cell_hashing_adata.obs_names)
+
+    # more lines than it needs to be...
     if clustering_data is not None or pre_existing_clusters is not None:
         cluster_features = "best_leiden" if pre_existing_clusters is None else pre_existing_clusters
         unique_cluster_features = cell_hashing_adata.obs[cluster_features].drop_duplicates()
@@ -240,7 +243,6 @@ def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
             axes = all_axes[counter]
         else:
             axes = all_axes
-        cluster_bool_vector = cell_hashing_demultiplexing["cluster_feature"] == cluster_feature
 
         ax = axes[0]
         ax.plot(group["log_counts"], group['negative_hypothesis_probability'], 'bo', alpha=alpha)

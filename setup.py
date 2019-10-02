@@ -4,7 +4,7 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 if sys.version_info < (3,):
-    sys.exit('loner requires Python >= 3.6')
+    sys.exit('solo requires Python >= 3.6')
 
 try:
     from scnym import __author__, __email__
@@ -17,7 +17,7 @@ setup(
     version='0.1',
     description='Neural network classifiers for doublets',
     long_description=Path('README.md').read_text('utf-8'),
-    url='http://github.com/calico/loner',
+    url='http://github.com/calico/solo',
     author=__author__,
     author_email=__email__,
     license='Apache',
@@ -27,7 +27,7 @@ setup(
                        ],
     packages=find_packages(),
     entry_points=dict(
-        console_scripts=['scnym=loner.loner:main'],
+        console_scripts=['solo=solo.solo:main'],
     ),
     classifiers=[
         'Environment :: Console',
