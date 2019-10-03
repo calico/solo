@@ -7,13 +7,13 @@ if sys.version_info < (3,):
     sys.exit('solo requires Python >= 3.6')
 
 try:
-    from scnym import __author__, __email__
+    from solo import __author__, __email__
 except ImportError:  # Deps not yet installed
     __author__ = __email__ = ''
 
 
 setup(
-    name='loner',
+    name='solo',
     version='0.1',
     description='Neural network classifiers for doublets',
     long_description=Path('README.md').read_text('utf-8'),

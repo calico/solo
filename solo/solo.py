@@ -1,18 +1,14 @@
 #!/usr/bin/env python
-from optparse import OptionParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
 import os
 import shutil
 import anndata
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import roc_auc_score, roc_curve
 from scipy.sparse import issparse
 from collections import defaultdict
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
                          GeneExpressionDataset
@@ -36,43 +32,58 @@ Simulate doublets, train a VAE, and then a classifier on top.
 
 
 def main():
-    usage = 'usage: %prog [options] <model_json> <data_file>'
-    parser = OptionParser(usage)
-    parser.add_option('-d', dest='doublet_depth',
-                      default=2., type='float',
-                      help='Depth multiplier for a doublet relative to the \
-                      average of its constituents [Default: %default]')
-    parser.add_option('-g', dest='gpu',
-                      default=False, action='store_true',
-                      help='Run on GPU [Default: %default]')
-    parser.add_option('-o', dest='out_dir',
-                      default='solo_out')
-    parser.add_option('-r', dest='doublet_ratio',
-                      default=2., type='float',
-                      help='Ratio of doublets to true \
-                      cells [Default: %default]')
-    parser.add_option('-s', dest='seed',
-                      default=None, help='Seed VAE model parameters')
-    parser.add_option('-k', dest='known_doublets',
-                      help='Experimentally defined doublets tsv file',
-                      type=str)
-    parser.add_option('-t', dest='doublet_type', help="Please enter \
-                      multinomial, average, or sum [Default: %default]",
-                      default="multinomial",
-                      choices=['multinomial', 'average', 'sum'])
-    parser.add_option('-e', dest='expected_number_of_doublets',
-                      help='Experimentally expected number of doublets',
-                      type=int, default=None)
-    (options, args) = parser.parse_args()
+    usage = 'usage: %prog [args] <model_json> <data_file>'
+    parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument(dest='model_json_file',
+                        help='json file to pass optional arguments')
+    parser.add_argument(dest='data_file',
+                        help='h5ad file containing cell by genes counts')
+    parser.add_argument('-d', dest='doublet_depth',
+                        default=2., type=float,
+                        help='Depth multiplier for a doublet relative to the \
+                        average of its constituents')
+    parser.add_argument('-g', dest='gpu',
+                        default=True, action='store_true',
+                        help='Run on GPU')
+    parser.add_argument('-o', dest='out_dir',
+                        default='solo_out')
+    parser.add_argument('-r', dest='doublet_ratio',
+                        default=2., type=float,
+                        help='Ratio of doublets to true \
+                        cells')
+    parser.add_argument('-s', dest='seed',
+                        default=None, help='Path to previous solo output  \
+                        directory. Seed VAE models with previously \
+                        trained solo model. Directory structure is assumed to \
+                        be the same as solo output directory structure. \
+                        should at least have a vae.pt a pickled object of \
+                        vae weights and a latent.npy an np.ndarray of the \
+                        latents of your cells.')
+    parser.add_argument('-k', dest='known_doublets',
+                        help='Experimentally defined doublets tsv file. \
+                        Should be a single column of True/False. True \
+                        indicates the cell is a doublet. No header.',
+                        type=str)
+    parser.add_argument('-t', dest='doublet_type', help="Please enter \
+                        multinomial, average, or sum",
+                        default="multinomial",
+                        choices=['multinomial', 'average', 'sum'])
+    parser.add_argument('-e', dest='expected_number_of_doublets',
+                        help='Experimentally expected number of doublets',
+                        type=int, default=None)
+    parser.add_argument('-p', dest='plot',
+                        default=True, action='store_true',
+                        help='Plot outputs')
+    args = parser.parse_args()
 
-    if len(args) != 2:
-        parser.error('Must provide model json and data loom')
-    else:
-        model_json_file = args[0]
-        data_file = args[1]
+    model_json_file = args.model_json_file
+    data_file = args.data_file
+    if args.gpu and not torch.cuda.is_available():
+        args.gpu = torch.cuda.is_available()
+        print("Cuda is not available, switching to cpu running!")
 
-    if not os.path.isdir(options.out_dir):
-        os.mkdir(options.out_dir)
+    if not os.path.isdir(args.out_dir):
+        os.mkdir(args.out_dir)
 
     ##################################################
     # data
@@ -84,16 +95,19 @@ def main():
     elif data_ext == '.h5ad':
         scvi_data = AnnDatasetFromAnnData(anndata.read(data_file))
     else:
-        print('Unrecognized file format')
+        msg = f'{data_ext} is not a recognized format.\n'
+        msg += 'must be one of {h5ad, loom}'
+        raise TypeError(msg)
+
     if issparse(scvi_data.X):
         scvi_data.X = scvi_data.X.todense()
     num_cells, num_genes = scvi_data.X.shape
 
-    if options.known_doublets is not None:
+    if args.known_doublets is not None:
         print("Removing known doublets for in silico doublet generation")
         print("Make sure known doublets are in the same order as your data")
-        known_doublets = pd.read_csv(options.known_doublets,
-                                     header=None)[0].values
+        known_doublets = np.loadtxt(args.known_doublets, dtype=str) == "True"
+
         assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
                                     scvi_data.X[known_doublets],
@@ -113,8 +127,11 @@ def main():
     ##################################################
     # parameters
 
+    # check for parameters
+    if not os.path.exists(model_json_file):
+        raise FileNotFoundError(f'{model_json_file} does not exist.')
     # read parameters
-    with open(model_json_file) as model_json_open:
+    with open(model_json_file, 'r') as model_json_open:
         params = json.load(model_json_open)
 
     # set VAE params
@@ -138,19 +155,20 @@ def main():
               reconstruction_loss='nb',
               log_variational=True, **vae_params)
 
-    if options.seed:
-        if options.gpu:
-            map_loc = None
+    if args.seed:
+        if args.gpu:
+            device = torch.device("cuda")
+            vae.load_state_dict(torch.load(os.path.join(args.seed, "vae.pt")))
+            vae.to(device)
         else:
             map_loc = 'cpu'
-        vae.load_state_dict(torch.load(options.seed, map_location=map_loc))
-        if options.gpu:
-            vae.cuda()
+            vae.load_state_dict(torch.load(os.path.join(args.seed, "vae.pt"),
+                                           map_location=map_loc))
 
         # copy latent representation
-        latent_file = '%s/latent.npy' % os.path.split(options.seed)[0]
+        latent_file = os.path.join(args.seed, 'latent.npy')
         if os.path.isfile(latent_file):
-            shutil.copy(latent_file, '%s/latent.npy' % options.out_dir)
+            shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
 
     else:
         stopping_params['early_stopping_metric'] = 'reconstruction_error'
@@ -162,7 +180,7 @@ def main():
                                 train_size=(1. - valid_pct),
                                 frequency=2,
                                 metrics_to_monitor=['reconstruction_error'],
-                                use_cuda=options.gpu,
+                                use_cuda=args.gpu,
                                 early_stopping_kwargs=stopping_params)
 
         # initial epoch
@@ -173,7 +191,7 @@ def main():
         utrainer.train(n_epochs=500, lr=0.1 * learning_rate)
 
         # save VAE
-        torch.save(vae.state_dict(), '%s/vae.pt' % options.out_dir)
+        torch.save(vae.state_dict(), os.path.join(args.out_dir, 'vae.pt'))
 
         # save latent representation
         full_posterior = utrainer.create_posterior(
@@ -181,8 +199,8 @@ def main():
                                     singlet_scvi_data,
                                     indices=np.arange(len(singlet_scvi_data)))
         latent, _, _ = full_posterior.sequential().get_latent()
-        np.save('%s/latent.npy' % options.out_dir, latent.astype('float32'))
-
+        np.save(os.path.join(args.out_dir, 'latent.npy'),
+                latent.astype('float32'))
 
     ##################################################
     # simulate doublets
@@ -195,15 +213,15 @@ def main():
         cells_ids[cell_id].append(gene)
 
     # choose doublets function type
-    if options.doublet_type == "average":
+    if args.doublet_type == "average":
         doublet_function = create_average_doublet
-    elif options.doublet_type == "sum":
+    elif args.doublet_type == "sum":
         doublet_function = create_summed_doublet
     else:
         doublet_function = create_multinomial_doublet
 
     cell_depths = singlet_scvi_data.X.sum(axis=1)
-    num_doublets = int(options.doublet_ratio * singlet_num_cells)
+    num_doublets = int(args.doublet_ratio * singlet_num_cells)
     if known_doublet_data is not None:
         num_doublets -= known_doublet_data.X.shape[0]
         # make sure we are making a non negative amount of doublets
@@ -218,9 +236,8 @@ def main():
         # generate doublets
         in_silico_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
-                             doublet_depth=options.doublet_depth,
+                             doublet_depth=args.doublet_depth,
                              cell_depths=cell_depths, cells_ids=cells_ids)
-
 
     # merge datasets
     # we can maybe up sample the known doublets
@@ -250,7 +267,7 @@ def main():
     strainer = ClassifierTrainer(classifier, classifier_data,
                                  train_size=(1. - valid_pct),
                                  frequency=2, metrics_to_monitor=['accuracy'],
-                                 use_cuda=options.gpu,
+                                 use_cuda=args.gpu,
                                  sampling_model=vae, sampling_zl=True,
                                  early_stopping_kwargs=stopping_params)
 
@@ -260,7 +277,7 @@ def main():
     # drop learning rate and continue
     strainer.early_stopping.wait = 0
     strainer.train(n_epochs=300, lr=0.1 * learning_rate)
-    torch.save(classifier.state_dict(), '%s/classifier.pt' % options.out_dir)
+    torch.save(classifier.state_dict(), os.path.join(args.out_dir, 'classifier.pt'))
 
     ##################################################
     # post-processing
@@ -272,9 +289,12 @@ def main():
     print('Train accuracy: %.4f' % strainer.train_set.accuracy())
     print('Test accuracy:  %.4f' % strainer.test_set.accuracy())
 
-    # compute my own predictions
+    # compute predictions manually
+    # output softmaxes
     train_y, train_score = strainer.train_set.compute_predictions(soft=True)
     test_y, test_score = strainer.test_set.compute_predictions(soft=True)
+    # train_y == true label
+    # train_score[:, 0] == singlet score; train_score[:, 1] == doublet score
     train_score = train_score[:, 1]
     train_y = train_y.astype('bool')
     test_score = test_score[:, 1]
@@ -286,48 +306,28 @@ def main():
     print('Train AUROC: %.4f' % train_auroc)
     print('Test AUROC:  %.4f' % test_auroc)
 
-    # plot ROC
     train_fpr, train_tpr, train_t = roc_curve(train_y, train_score)
     test_fpr, test_tpr, test_t = roc_curve(test_y, test_score)
     train_t = np.minimum(train_t, 1 + 1e-9)
     test_t = np.minimum(test_t, 1 + 1e-9)
-    plt.figure()
-    plt.plot(train_fpr, train_tpr, label='Train')
-    plt.plot(test_fpr, test_tpr, label='Test')
-    plt.gca().set_xlabel('False positive rate')
-    plt.gca().set_ylabel('True positive rate')
-    plt.legend()
-    plt.savefig('%s/roc.pdf' % options.out_dir)
-    plt.close()
 
-    # plot accuracy
     train_acc = np.zeros(len(train_t))
     for i in range(len(train_t)):
         train_acc[i] = np.mean(train_y == (train_score > train_t[i]))
     test_acc = np.zeros(len(test_t))
     for i in range(len(test_t)):
         test_acc[i] = np.mean(test_y == (test_score > test_t[i]))
-    plt.figure()
-    plt.plot(train_t, train_acc, label='Train')
-    plt.plot(test_t, test_acc, label='Test')
-    plt.axvline(0.5, color='black', linestyle='--')
-    plt.gca().set_xlabel('Threshold')
-    plt.gca().set_ylabel('Accuracy')
-    plt.legend()
-    plt.savefig('%s/accuracy.pdf' % options.out_dir)
-    plt.close()
 
     # write predictions
     order_y, order_score = strainer.compute_predictions(soft=True)
     order_score = order_score[:, 1]
-    np.save('%s/scores.npy' % options.out_dir, order_score[:num_cells])
-    np.save('%s/scores_sim.npy' % options.out_dir, order_score[num_cells:])
+    np.save(os.path.join(args.out_dir, 'scores.npy'), order_score[:num_cells])
+    np.save(os.path.join(args.out_dir, 'scores_sim.npy'), order_score[num_cells:])
 
-    ## TODO: figure out this function
-    if options.expected_number_of_doublets is not None:
+    if args.expected_number_of_doublets is not None:
         solo_scores = order_score[:num_cells]
-        k = len(solo_scores) - options.expected_number_of_doublets
-        if options.expected_number_of_doublets / len(solo_scores) > .5:
+        k = len(solo_scores) - args.expected_number_of_doublets
+        if args.expected_number_of_doublets / len(solo_scores) > .5:
             print("""Make sure you actually expect more than half your cells
                    to be doublets. If not change your
                    -e parameter value""")
@@ -338,34 +338,56 @@ def main():
         threshold = .5
     is_solo_doublet = order_score > threshold
 
-    # plot distributions
-    plt.figure()
-    sns.distplot(test_score[test_y], label='Simulated')
-    sns.distplot(test_score[~test_y], label='Observed')
-    plt.axvline(x=threshold)
-    plt.legend()
-    plt.savefig('%s/train_v_test_dist.pdf' % options.out_dir)
-    plt.close()
-
-    plt.figure()
-    sns.distplot(order_score[:num_cells], label='Simulated')
-    plt.axvline(x=threshold)
-    plt.legend()
-    plt.savefig('%s/real_cells_dist.pdf' % options.out_dir)
-    plt.close()
-
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
     is_doublet[new_doublets_idx] = True
 
-    np.save('%s/is_doublet.npy' % options.out_dir, is_doublet[:num_cells])
-    np.save('%s/is_doublet_sim.npy' % options.out_dir, is_doublet[num_cells:])
+    np.save(os.path.join(args.out_dir, 'is_doublet.npy'), is_doublet[:num_cells])
+    np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_doublet[num_cells:])
 
     _, order_pred = strainer.compute_predictions()
-    np.save('%s/preds.npy' % options.out_dir, order_pred[:num_cells])
-    np.save('%s/preds_sim.npy' % options.out_dir, order_pred[num_cells:])
+    np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
+    np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
 
+    if args.plot:
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        # plot ROC
+        plt.figure()
+        plt.plot(train_fpr, train_tpr, label='Train')
+        plt.plot(test_fpr, test_tpr, label='Test')
+        plt.gca().set_xlabel('False positive rate')
+        plt.gca().set_ylabel('True positive rate')
+        plt.legend()
+        plt.savefig(os.path.join(args.out_dir, 'roc.pdf'))
+        plt.close()
 
+        # plot accuracy
+        plt.figure()
+        plt.plot(train_t, train_acc, label='Train')
+        plt.plot(test_t, test_acc, label='Test')
+        plt.axvline(0.5, color='black', linestyle='--')
+        plt.gca().set_xlabel('Threshold')
+        plt.gca().set_ylabel('Accuracy')
+        plt.legend()
+        plt.savefig(os.path.join(args.out_dir, 'accuracy.pdf'))
+        plt.close()
+
+        # plot distributions
+        plt.figure()
+        sns.distplot(test_score[test_y], label='Simulated')
+        sns.distplot(test_score[~test_y], label='Observed')
+        plt.axvline(x=threshold)
+        plt.legend()
+        plt.savefig(os.path.join(args.out_dir, 'train_v_test_dist.pdf'))
+        plt.close()
+
+        plt.figure()
+        sns.distplot(order_score[:num_cells], label='Simulated')
+        plt.axvline(x=threshold)
+        plt.legend()
+        plt.savefig(os.path.join(args.out_dir, 'real_cells_dist.pdf'))
+        plt.close()
 ###############################################################################
 # __main__
 ###############################################################################

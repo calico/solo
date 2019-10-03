@@ -6,28 +6,52 @@ Cells subjected to single cell RNA-seq have been through a lot, and they'd reall
 
 ### Quick set up
 Run the following to clone and set up ve.
-`git clone git@github.com:calico/solo.git && cd solo && conda env create -n solo  python=3.6 && conda activate solo && pip install -e .`
+`git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.6 && conda activate solo && pip install -e .`
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
-```Usage: solo [options] <model_json> <data_file>
-
-Options:
-  -h, --help            show this help message and exit
-  -d DOUBLET_DEPTH      Depth multiplier for a doublet relative to the
-                        average of its constituents [Default: 2.0]
-  -g                    Run on GPU [Default: False]
-  -o OUT_DIR            
-  -r DOUBLET_RATIO      Ratio of doublets to true cells
-                        [Default: 2.0]
-  -s SEED               Seed VAE model parameters
-  -k KNOWN_DOUBLETS     Experimentally defined doublets tsv file
-  -t DOUBLET_TYPE       Please enter multinomial,
-                        average, or sum [Default: multinomial]
-  -e EXPECTED_NUMBER_OF_DOUBLETS
-                        Experimentally expected number of doublets
+### How to solo
 ```
-                        
+usage: usage: %prog [args] <model_json> <data_file> [-h] [-d DOUBLET_DEPTH]
+                                                    [-g] [-o OUT_DIR]
+                                                    [-r DOUBLET_RATIO]
+                                                    [-s SEED]
+                                                    [-k KNOWN_DOUBLETS]
+                                                    [-t {multinomial,average,sum}]
+                                                    [-e EXPECTED_NUMBER_OF_DOUBLETS]
+                                                    [-p]
+                                                    model_json_file data_file
+
+positional arguments:
+  model_json_file       json file to pass optional arguments
+  data_file             h5ad file containing cell by genes counts
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d DOUBLET_DEPTH      Depth multiplier for a doublet relative to the average
+                        of its constituents (default: 2.0)
+  -g                    Run on GPU (default: True)
+  -o OUT_DIR
+  -r DOUBLET_RATIO      Ratio of doublets to true cells (default: 2.0)
+  -s SEED               Path to previous solo output directory. Seed VAE
+                        models with previously trained solo model. Directory
+                        structure is assumed to be the same as solo output
+                        directory structure. should at least have a vae.pt a
+                        pickled object of vae weights and a latent.npy an
+                        np.ndarray of the latents of your cells. (default:
+                        None)
+  -k KNOWN_DOUBLETS     Experimentally defined doublets tsv file. Should be a
+                        single column of True/False. True indicates the cell
+                        is a doublet. No header. (default: None)
+  -t {multinomial,average,sum}
+                        Please enter multinomial, average, or sum (default:
+                        multinomial)
+  -e EXPECTED_NUMBER_OF_DOUBLETS
+                        Experimentally expected number of doublets (default:
+                        None)
+  -p                    Plot outputs (default: True)
+```
+
 model_json example:
 ```
 {
@@ -62,14 +86,29 @@ Outputs:
 
 Demultiplexing takes as input an h5ad file with only hashing counts. Counts can be obtained from your fastqs by using kite. See tutorial here: https://github.com/pachterlab/kite
 
-```Usage: demultiplex [options] <model_json> <cell_hashing_data_file>
+```
+usage: usage: %prog [arguments] <cell_hashing_data_file> [-h]
+                                                         [-j MODEL_JSON_FILE]
+                                                         [-o OUT_DIR]
+                                                         [-c CLUSTERING_DATA]
+                                                         [-p PRE_EXISTING_CLUSTERS]
+                                                         [-q PLOT_NAME]
+                                                         data_file
 
-Options:
-  -h, --help  show this help message and exit
-  -o OUT_DIR            
-  -c CLUSTERING_DATA    
+positional arguments:
+  data_file             h5ad file containing cell hashing counts
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -j MODEL_JSON_FILE    json file to pass optional arguments (default: None)
+  -o OUT_DIR            Output directory for results (default:
+                        solo_demultiplex)
+  -c CLUSTERING_DATA    h5ad file with count transcriptional data to perform
+                        clustering on (default: None)
   -p PRE_EXISTING_CLUSTERS
-  -q PLOT_NAME   
+                        column in cell_hashing_data_file.obs to specifying
+                        different cell types or clusters (default: None)
+  -q PLOT_NAME          name of plot to output (default: hashing_qc_plots.png)   
 ```
 
 model_json example:
@@ -79,7 +118,7 @@ model_json example:
 }
 ```
 
-Outputs: 
+Outputs:
 *  `hashing_demultiplexed.h5ad` anndata with demultiplexing information in .obs
 *  `hashing_qc_plots.png` plots of probabilites for each cell
 
@@ -90,7 +129,7 @@ Outputs:
 >>> from solo import demultiplex
 >>> import anndata
 >>> cell_hashing_data = anndata.read("cell_hashing_counts.h5ad")
->>> demultiplex.demultiplex_cell_hashing(cell_hashing_data) 
+>>> demultiplex.demultiplex_cell_hashing(cell_hashing_data)
 >>> cell_hashing_data.obs.head()
                   most_likeli_hypothesis  cluster_feature  negative_hypothesis_probability  singlet_hypothesis_probability  doublet_hypothesis_probability         Classification
 index                                                                                                                                                                            

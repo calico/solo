@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import json
-from optparse import OptionParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from scipy.stats import norm
 from itertools import product
@@ -9,7 +9,6 @@ import anndata
 import numpy as np
 import scanpy as sc
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from sklearn.metrics import calinski_harabaz_score
 
@@ -111,8 +110,8 @@ def _calculate_bayes_rule(data, priors):
     '''
     log_likelihoods_for_each_hypothesis, _, _ = _calculate_probabilities(data)
     probs_hypotheses = np.exp(log_likelihoods_for_each_hypothesis) * np.array(priors) / np.sum(np.multiply(np.exp(log_likelihoods_for_each_hypothesis), np.array(priors)), axis=1)[:, None]
-    most_likeli_hypothesis = np.argmax(probs_hypotheses, axis=1)
-    return {"most_likeli_hypothesis": most_likeli_hypothesis,
+    most_likely_hypothesis = np.argmax(probs_hypotheses, axis=1)
+    return {"most_likely_hypothesis": most_likely_hypothesis,
             "probs_hypotheses": probs_hypotheses,
             "log_likelihoods_for_each_hypothesis": log_likelihoods_for_each_hypothesis}
 
@@ -176,7 +175,7 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
     data = cell_hashing_adata.X
     num_of_cells = cell_hashing_adata.shape[0]
     results = pd.DataFrame(np.zeros((num_of_cells, 6)),
-                           columns=['most_likeli_hypothesis',
+                           columns=['most_likely_hypothesis',
                                     'probs_hypotheses',
                                     'cluster_feature',
                                     'negative_hypothesis_probability',
@@ -189,29 +188,29 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
         for cluster_feature in unique_cluster_features:
             cluster_feature_bool_vector = cell_hashing_adata.obs[cluster_features] == cluster_feature
             posterior_dict = _calculate_bayes_rule(data[cluster_feature_bool_vector], priors)
-            results.loc[cluster_feature_bool_vector, 'most_likeli_hypothesis'] = posterior_dict['most_likeli_hypothesis']
+            results.loc[cluster_feature_bool_vector, 'most_likely_hypothesis'] = posterior_dict['most_likely_hypothesis']
             results.loc[cluster_feature_bool_vector, 'cluster_feature'] = cluster_feature
             results.loc[cluster_feature_bool_vector, 'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
             results.loc[cluster_feature_bool_vector, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
             results.loc[cluster_feature_bool_vector, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
     else:
         posterior_dict = _calculate_bayes_rule(data, priors)
-        results.loc[:, 'most_likeli_hypothesis'] = posterior_dict['most_likeli_hypothesis']
+        results.loc[:, 'most_likely_hypothesis'] = posterior_dict['most_likely_hypothesis']
         results.loc[:, 'cluster_feature'] = 0
         results.loc[:, 'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
         results.loc[:, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
         results.loc[:, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
 
-    cell_hashing_adata.obs['most_likeli_hypothesis'] = results.loc[cell_hashing_adata.obs_names, 'most_likeli_hypothesis']
+    cell_hashing_adata.obs['most_likely_hypothesis'] = results.loc[cell_hashing_adata.obs_names, 'most_likely_hypothesis']
     cell_hashing_adata.obs['cluster_feature'] = results.loc[cell_hashing_adata.obs_names, 'cluster_feature']
     cell_hashing_adata.obs['negative_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'negative_hypothesis_probability']
     cell_hashing_adata.obs['singlet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'singlet_hypothesis_probability']
     cell_hashing_adata.obs['doublet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'doublet_hypothesis_probability']
 
     cell_hashing_adata.obs["Classification"] = None
-    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likeli_hypothesis"] == 2, "Classification"] = "Doublet"
-    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likeli_hypothesis"] == 0, "Classification"] = "Negative"
-    all_sings = cell_hashing_adata.obs["most_likeli_hypothesis"] == 1
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"] == 2, "Classification"] = "Doublet"
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"] == 0, "Classification"] = "Negative"
+    all_sings = cell_hashing_adata.obs["most_likely_hypothesis"] == 1
     singlet_sample_index = np.argmax(cell_hashing_adata.X[all_sings], axis=1)
     cell_hashing_adata.obs.loc[all_sings, "Classification"] = cell_hashing_adata.var_names[singlet_sample_index]
 
@@ -232,6 +231,7 @@ def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
     fig_path : str
         Path to save figure
     '''
+    import matplotlib.pyplot as plt
 
     cell_hashing_demultiplexing = cell_hashing_adata.obs
     cell_hashing_demultiplexing['log_counts'] = np.log(np.sum(cell_hashing_adata.X, axis=1))
@@ -243,7 +243,6 @@ def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
             axes = all_axes[counter]
         else:
             axes = all_axes
-        cluster_bool_vector = cell_hashing_demultiplexing["cluster_feature"] == cluster_feature
 
         ax = axes[0]
         ax.plot(group["log_counts"], group['negative_hypothesis_probability'], 'bo', alpha=alpha)
@@ -273,42 +272,46 @@ def plot_qc_checks_cell_hashing(cell_hashing_adata: anndata.AnnData,
 
 
 def main():
-    usage = 'usage: %prog [options] <model_json> <cell_hashing_data_file>'
-    parser = OptionParser(usage)
-    parser.add_option('-o', dest='out_dir',
-                      default='solo_demultiplex',
-                      help='Output directory for results [Default: %default]')
-    parser.add_option('-c', dest='clustering_data',
-                      default=None,
-                      help='h5ad file with count transcriptional data to \
+    usage = 'usage: %prog [arguments] <cell_hashing_data_file>'
+    parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument(dest='data_file',
+                        help='h5ad file containing cell hashing counts')
+    parser.add_argument('-j', dest='model_json_file',
+                        default=None,
+                        help='json file to pass optional arguments')
+    parser.add_argument('-o', dest='out_dir',
+                        default='solo_demultiplex',
+                        help='Output directory for results')
+    parser.add_argument('-c', dest='clustering_data',
+                        default=None,
+                        help='h5ad file with count transcriptional data to \
                       perform clustering on')
-    parser.add_option('-p', dest='pre_existing_clusters',
-                      default=None,
-                      help='column in cell_hashing_data_file.obs to specifying\
-                      different cell types or clusters')
-    parser.add_option('-q', dest='plot_name',
-                      default="hashing_qc_plots.png",
-                      help='name of plot to output [Default: %default]')
-    (options, args) = parser.parse_args()
+    parser.add_argument('-p', dest='pre_existing_clusters',
+                        default=None,
+                        help='column in cell_hashing_data_file.obs to \
+                        specifying different cell types or clusters')
+    parser.add_argument('-q', dest='plot_name',
+                        default="hashing_qc_plots.png",
+                        help='name of plot to output')
+    args = parser.parse_args()
 
-    if len(args) != 2:
-        parser.error('Must provide model json and data loom')
+    model_json_file = args.model_json_file
+    if model_json_file is not None:
+        # read parameters
+        with open(model_json_file) as model_json_open:
+            params = json.load(model_json_open)
     else:
-        model_json_file = args[0]
-        data_file = args[1]
-
-    # read parameters
-    with open(model_json_file) as model_json_open:
-        params = json.load(model_json_open)
-
+        params = {}
+    data_file = args.data_file
     data_ext = os.path.splitext(data_file)[-1]
     if data_ext == '.h5ad':
         cell_hashing_adata = anndata.read(data_file)
     else:
         print('Unrecognized file format')
 
-    if options.clustering_data is not None:
-        clustering_data_file = options.clustering_data
+    if args.clustering_data is not None:
+        clustering_data_file = args.clustering_data
         clustering_data_ext = os.path.splitext(clustering_data_file)[-1]
         if clustering_data_ext == '.h5ad':
             clustering_data = anndata.read(clustering_data_file)
@@ -317,15 +320,15 @@ def main():
     else:
         clustering_data = None
 
-    if not os.path.isdir(options.out_dir):
-        os.mkdir(options.out_dir)
+    if not os.path.isdir(args.out_dir):
+        os.mkdir(args.out_dir)
 
     demultiplex_cell_hashing(cell_hashing_adata,
-                             pre_existing_clusters=options.pre_existing_clusters,
+                             pre_existing_clusters=args.pre_existing_clusters,
                              clustering_data=clustering_data,
                              **params)
-    cell_hashing_adata.write(os.path.join(options.out_dir, "hashing_demultiplexed.h5ad"))
-    plot_qc_checks_cell_hashing(cell_hashing_adata, fig_path=os.path.join(options.out_dir, options.plot_name))
+    cell_hashing_adata.write(os.path.join(args.out_dir, "hashing_demultiplexed.h5ad"))
+    plot_qc_checks_cell_hashing(cell_hashing_adata, fig_path=os.path.join(args.out_dir, args.plot_name))
 
 ###############################################################################
 # __main__
