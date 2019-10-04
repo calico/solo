@@ -23,8 +23,8 @@ setup(
     license='Apache',
     python_requires='>=3.6',
     install_requires=[l.strip() for l in
-                       Path('requirements.txt').read_text('utf-8').splitlines()
-                       ],
+                      Path('requirements.txt').read_text('utf-8').splitlines()
+                      ],
     packages=find_packages(),
     entry_points=dict(
         console_scripts=['solo=solo.solo:main',

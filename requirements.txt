@@ -24,3 +24,4 @@ scikit-learn==0.19.1
 numba==0.45
 scvi==0.4.1
 dataclasses==0.6
+leidenalg==0.7.0

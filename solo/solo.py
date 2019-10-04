@@ -11,7 +11,7 @@ from scipy.sparse import issparse
 from collections import defaultdict
 
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
-                         GeneExpressionDataset
+    GeneExpressionDataset
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
@@ -110,12 +110,12 @@ def main():
 
         assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
-                                    scvi_data.X[known_doublets],
-                                    scvi_data.gene_names)
+            scvi_data.X[known_doublets],
+            scvi_data.gene_names)
         known_doublet_data.labels = np.ones(known_doublet_data.X.shape[0])
         singlet_scvi_data = make_gene_expression_dataset(
-                                                 scvi_data.X[~known_doublets],
-                                                 scvi_data.gene_names)
+            scvi_data.X[~known_doublets],
+            scvi_data.gene_names)
         singlet_num_cells, _ = singlet_scvi_data.X.shape
     else:
         known_doublet_data = None
@@ -195,9 +195,9 @@ def main():
 
         # save latent representation
         full_posterior = utrainer.create_posterior(
-                                    utrainer.model,
-                                    singlet_scvi_data,
-                                    indices=np.arange(len(singlet_scvi_data)))
+            utrainer.model,
+            singlet_scvi_data,
+            indices=np.arange(len(singlet_scvi_data)))
         latent, _, _ = full_posterior.sequential().get_latent()
         np.save(os.path.join(args.out_dir, 'latent.npy'),
                 latent.astype('float32'))
@@ -244,11 +244,11 @@ def main():
     # concatentate
     classifier_data = GeneExpressionDataset()
     classifier_data.populate_from_data(
-                    X=np.vstack([scvi_data.X,
-                                 in_silico_doublets]),
-                    labels=np.hstack([np.ravel(scvi_data.labels),
-                                      np.ones(in_silico_doublets.shape[0])]),
-                    remap_attributes=False)
+        X=np.vstack([scvi_data.X,
+                     in_silico_doublets]),
+        labels=np.hstack([np.ravel(scvi_data.labels),
+                          np.ones(in_silico_doublets.shape[0])]),
+        remap_attributes=False)
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 

@@ -32,20 +32,21 @@ def _calculate_probabilities(z):
     num_of_barcodes = z.shape[1]
     num_of_noise_barcodes = num_of_barcodes - 2
 
-    #assume log normal
+    # assume log normal
     z = np.log(z + 1)
     z_arg = np.argsort(z, axis=1)
     z_sort = np.sort(z, axis=1)
 
     # global signal and noise counts useful for when we have few cells
     global_signal_counts = np.ravel(z_sort[:, -1])
-    global_noise_counts= np.ravel(z_sort[:, :-2])
-    global_mu_signal_o, global_sigma_signal_o = np.mean(global_signal_counts), np.std(global_signal_counts)
-    global_mu_noise_o, global_sigma_noise_o = np.mean(global_noise_counts), np.std(global_noise_counts)
+    global_noise_counts = np.ravel(z_sort[:, :-2])
+    global_mu_signal_o, global_sigma_signal_o = np.mean(
+        global_signal_counts), np.std(global_signal_counts)
+    global_mu_noise_o, global_sigma_noise_o = np.mean(
+        global_noise_counts), np.std(global_noise_counts)
 
     noise_params_dict = {}
     signal_params_dict = {}
-
 
     # for each barcode get  empirical noise and signal distribution parameterization
     for x in np.arange(num_of_barcodes):
@@ -86,14 +87,18 @@ def _calculate_probabilities(z):
 
         # calculate probabilties for each hypothesis for each cell
         z_subset = z[subset]
-        log_signal_signal_probs = np.log(norm.pdf(z_subset[:, signal_sample_idx], *signal_params[:-2], loc=signal_params[-2], scale=signal_params[-1])  + eps)
+        log_signal_signal_probs = np.log(norm.pdf(
+            z_subset[:, signal_sample_idx], *signal_params[:-2], loc=signal_params[-2], scale=signal_params[-1]) + eps)
         signal_noise_params = signal_params_dict[noise_sample_idx]
-        log_noise_signal_probs = np.log(norm.pdf(z_subset[:, noise_sample_idx], *signal_noise_params[:-2], loc=signal_noise_params[-2], scale=signal_noise_params[-1]) + eps)
+        log_noise_signal_probs = np.log(norm.pdf(
+            z_subset[:, noise_sample_idx], *signal_noise_params[:-2], loc=signal_noise_params[-2], scale=signal_noise_params[-1]) + eps)
 
-        log_noise_noise_probs = np.log(norm.pdf(z_subset[:, noise_sample_idx], *noise_params[:-2], loc=noise_params[-2], scale=noise_params[-1])  + eps)
-        log_signal_noise_probs = np.log(norm.pdf(z_subset[:, signal_sample_idx], *noise_params[:-2], loc=noise_params[-2], scale=noise_params[-1]) + eps )
+        log_noise_noise_probs = np.log(norm.pdf(
+            z_subset[:, noise_sample_idx], *noise_params[:-2], loc=noise_params[-2], scale=noise_params[-1]) + eps)
+        log_signal_noise_probs = np.log(norm.pdf(
+            z_subset[:, signal_sample_idx], *noise_params[:-2], loc=noise_params[-2], scale=noise_params[-1]) + eps)
 
-        probs_of_negative = np.sum([log_noise_noise_probs, log_signal_noise_probs] , axis=0)
+        probs_of_negative = np.sum([log_noise_noise_probs, log_signal_noise_probs], axis=0)
         probs_of_singlet = np.sum([log_noise_noise_probs, log_signal_signal_probs], axis=0)
         probs_of_doublet = np.sum([log_noise_signal_probs, log_signal_signal_probs], axis=0)
         log_probs_list = [probs_of_negative, probs_of_singlet, probs_of_doublet]
@@ -108,8 +113,10 @@ def _calculate_probabilities(z):
 def _calculate_bayes_rule(data, priors):
     '''
     '''
+    priors = np.array(priors)
     log_likelihoods_for_each_hypothesis, _, _ = _calculate_probabilities(data)
-    probs_hypotheses = np.exp(log_likelihoods_for_each_hypothesis) * np.array(priors) / np.sum(np.multiply(np.exp(log_likelihoods_for_each_hypothesis), np.array(priors)), axis=1)[:, None]
+    probs_hypotheses = np.exp(log_likelihoods_for_each_hypothesis) * priors / np.sum(
+        np.multiply(np.exp(log_likelihoods_for_each_hypothesis), priors), axis=1)[:, None]
     most_likely_hypothesis = np.argmax(probs_hypotheses, axis=1)
     return {"most_likely_hypothesis": most_likely_hypothesis,
             "probs_hypotheses": probs_hypotheses,
@@ -169,7 +176,8 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
     if clustering_data is not None:
         print("This may take awhile we are running clustering at {} different resolutions".format(len(resolutions)))
         if not all(clustering_data.obs_names == cell_hashing_adata.obs_names):
-            raise ValueError("clustering_data and cell hashing cell_hashing_adata must have same index")
+            raise ValueError(
+                "clustering_data and cell hashing cell_hashing_adata must have same index")
         cell_hashing_adata.obs["best_leiden"] = _get_clusters(clustering_data, resolutions)
 
     data = cell_hashing_adata.X
@@ -180,7 +188,7 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
                                     'cluster_feature',
                                     'negative_hypothesis_probability',
                                     'singlet_hypothesis_probability',
-                                    'doublet_hypothesis_probability',],
+                                    'doublet_hypothesis_probability', ],
                            index=cell_hashing_adata.obs_names)
     if clustering_data is not None or pre_existing_clusters is not None:
         cluster_features = "best_leiden" if pre_existing_clusters is None else pre_existing_clusters
@@ -188,11 +196,15 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
         for cluster_feature in unique_cluster_features:
             cluster_feature_bool_vector = cell_hashing_adata.obs[cluster_features] == cluster_feature
             posterior_dict = _calculate_bayes_rule(data[cluster_feature_bool_vector], priors)
-            results.loc[cluster_feature_bool_vector, 'most_likely_hypothesis'] = posterior_dict['most_likely_hypothesis']
+            results.loc[cluster_feature_bool_vector,
+                        'most_likely_hypothesis'] = posterior_dict['most_likely_hypothesis']
             results.loc[cluster_feature_bool_vector, 'cluster_feature'] = cluster_feature
-            results.loc[cluster_feature_bool_vector, 'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
-            results.loc[cluster_feature_bool_vector, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
-            results.loc[cluster_feature_bool_vector, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
+            results.loc[cluster_feature_bool_vector,
+                        'negative_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 0]
+            results.loc[cluster_feature_bool_vector,
+                        'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
+            results.loc[cluster_feature_bool_vector,
+                        'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
     else:
         posterior_dict = _calculate_bayes_rule(data, priors)
         results.loc[:, 'most_likely_hypothesis'] = posterior_dict['most_likely_hypothesis']
@@ -201,18 +213,25 @@ def demultiplex_cell_hashing(cell_hashing_adata: anndata.AnnData,
         results.loc[:, 'singlet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 1]
         results.loc[:, 'doublet_hypothesis_probability'] = posterior_dict["probs_hypotheses"][:, 2]
 
-    cell_hashing_adata.obs['most_likely_hypothesis'] = results.loc[cell_hashing_adata.obs_names, 'most_likely_hypothesis']
+    cell_hashing_adata.obs['most_likely_hypothesis'] = results.loc[cell_hashing_adata.obs_names,
+                                                                   'most_likely_hypothesis']
     cell_hashing_adata.obs['cluster_feature'] = results.loc[cell_hashing_adata.obs_names, 'cluster_feature']
-    cell_hashing_adata.obs['negative_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'negative_hypothesis_probability']
-    cell_hashing_adata.obs['singlet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'singlet_hypothesis_probability']
-    cell_hashing_adata.obs['doublet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names, 'doublet_hypothesis_probability']
+    cell_hashing_adata.obs['negative_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names,
+                                                                            'negative_hypothesis_probability']
+    cell_hashing_adata.obs['singlet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names,
+                                                                           'singlet_hypothesis_probability']
+    cell_hashing_adata.obs['doublet_hypothesis_probability'] = results.loc[cell_hashing_adata.obs_names,
+                                                                           'doublet_hypothesis_probability']
 
     cell_hashing_adata.obs["Classification"] = None
-    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"] == 2, "Classification"] = "Doublet"
-    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"] == 0, "Classification"] = "Negative"
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"]
+                               == 2, "Classification"] = "Doublet"
+    cell_hashing_adata.obs.loc[cell_hashing_adata.obs["most_likely_hypothesis"]
+                               == 0, "Classification"] = "Negative"
     all_sings = cell_hashing_adata.obs["most_likely_hypothesis"] == 1
     singlet_sample_index = np.argmax(cell_hashing_adata.X[all_sings], axis=1)
-    cell_hashing_adata.obs.loc[all_sings, "Classification"] = cell_hashing_adata.var_names[singlet_sample_index]
+    cell_hashing_adata.obs.loc[all_sings,
+                               "Classification"] = cell_hashing_adata.var_names[singlet_sample_index]
 
     return cell_hashing_adata if not inplace else None
 
@@ -328,7 +347,8 @@ def main():
                              clustering_data=clustering_data,
                              **params)
     cell_hashing_adata.write(os.path.join(args.out_dir, "hashing_demultiplexed.h5ad"))
-    plot_qc_checks_cell_hashing(cell_hashing_adata, fig_path=os.path.join(args.out_dir, args.plot_name))
+    plot_qc_checks_cell_hashing(
+        cell_hashing_adata, fig_path=os.path.join(args.out_dir, args.plot_name))
 
 ###############################################################################
 # __main__
