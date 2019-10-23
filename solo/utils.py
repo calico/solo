@@ -9,7 +9,7 @@ def create_average_doublet(X: np.ndarray,
                            j: int, **kwargs):
     '''make an average combination of 2 cells
 
-    Attributes
+    Parameters
     ----------
     X : np.array
       cell by genes matrix
@@ -17,6 +17,10 @@ def create_average_doublet(X: np.ndarray,
       randomly chosen ith cell
     j : int,
       randomly chosen jth cell
+    Returns
+    -------
+    float64
+        average expression vector of two cells
     '''
     return (X[i, :] + X[j, :]).astype('float64') / 2
 
@@ -26,7 +30,7 @@ def create_summed_doublet(X: np.ndarray,
                           j: int, **kwargs):
     '''make a sum combination of 2 cells
 
-    Attributes
+    Parameters
     ----------
     X : np.array
       cell by genes matrix
@@ -34,6 +38,10 @@ def create_summed_doublet(X: np.ndarray,
       randomly chosen ith cell
     j : int,
       randomly chosen jth cell
+    Returns
+    -------
+    float64
+        summed expression vector of two cells
     '''
     return (X[i, :] + X[j, :]).astype('float64')
 
@@ -43,7 +51,7 @@ def create_multinomial_doublet(X: np.ndarray,
                                j: int, **kwargs):
     '''make a multinomial combination of 2 cells
 
-    Attributes
+    Parameters
     ----------
     X : np.array
         cell by genes matrix
@@ -56,6 +64,10 @@ def create_multinomial_doublet(X: np.ndarray,
         doublet_depth is an int
         cell_depths is an list of all cells total UMI counts as ints
         cell_ids list of lists with genes with counts for each cell
+    Returns
+    -------
+    float64
+        multinomial expression vector of two cells
     '''
     doublet_depth = kwargs["doublet_depth"]
     cell_depths = kwargs["cell_depths"]
@@ -86,12 +98,16 @@ def create_multinomial_doublet(X: np.ndarray,
 def make_gene_expression_dataset(data: np.ndarray, gene_names: np.ndarray):
     '''make an scVI GeneExpressionDataset
 
-    Attributes
+    Parameters
     ----------
     data : np.array
         cell by genes matrix
     gene_names : np.array,
         string array with gene names
+    Returns
+    -------
+    ge_data : GeneExpressionDataset
+        scVI GeneExpressionDataset for scVI processing
     '''
     ge_data = GeneExpressionDataset()
     ge_data.populate_from_data(X=data, gene_names=gene_names)

@@ -10,6 +10,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 from scipy.sparse import issparse
 from collections import defaultdict
 
+import scvi
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
     GeneExpressionDataset
 from scvi.models import Classifier, VAE
@@ -32,10 +33,10 @@ Simulate doublets, train a VAE, and then a classifier on top.
 
 
 def main():
-    usage = 'usage: %prog [args] <model_json> <data_file>'
+    usage = 'solo'
     parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(dest='model_json_file',
-                        help='json file to pass optional arguments')
+                        help='json file to pass VAE parameters')
     parser.add_argument(dest='data_file',
                         help='h5ad file containing cell by genes counts')
     parser.add_argument('-d', dest='doublet_depth',
@@ -64,23 +65,29 @@ def main():
                         Should be a single column of True/False. True \
                         indicates the cell is a doublet. No header.',
                         type=str)
-    parser.add_argument('-t', dest='doublet_type', help="Please enter \
-                        multinomial, average, or sum",
-                        default="multinomial",
+    parser.add_argument('-t', dest='doublet_type', help='Please enter \
+                        multinomial, average, or sum',
+                        default='multinomial',
                         choices=['multinomial', 'average', 'sum'])
     parser.add_argument('-e', dest='expected_number_of_doublets',
                         help='Experimentally expected number of doublets',
                         type=int, default=None)
     parser.add_argument('-p', dest='plot',
-                        default=True, action='store_true',
+                        default=True, action='store_false',
                         help='Plot outputs')
+    parser.add_argument('-l', dest='debug',
+                        default=True, action='store_false',
+                        help='Logging level set to normal')
     args = parser.parse_args()
+
+    if args.debug:
+        scvi._settings.set_verbosity(10)
 
     model_json_file = args.model_json_file
     data_file = args.data_file
     if args.gpu and not torch.cuda.is_available():
         args.gpu = torch.cuda.is_available()
-        print("Cuda is not available, switching to cpu running!")
+        print('Cuda is not available, switching to cpu running!')
 
     if not os.path.isdir(args.out_dir):
         os.mkdir(args.out_dir)
@@ -104,9 +111,9 @@ def main():
     num_cells, num_genes = scvi_data.X.shape
 
     if args.known_doublets is not None:
-        print("Removing known doublets for in silico doublet generation")
-        print("Make sure known doublets are in the same order as your data")
-        known_doublets = np.loadtxt(args.known_doublets, dtype=str) == "True"
+        print('Removing known doublets for in silico doublet generation')
+        print('Make sure known doublets are in the same order as your data')
+        known_doublets = np.loadtxt(args.known_doublets, dtype=str) == 'True'
 
         assert len(known_doublets) == scvi_data.X.shape[0]
         known_doublet_data = make_gene_expression_dataset(
@@ -157,12 +164,12 @@ def main():
 
     if args.seed:
         if args.gpu:
-            device = torch.device("cuda")
-            vae.load_state_dict(torch.load(os.path.join(args.seed, "vae.pt")))
+            device = torch.device('cuda')
+            vae.load_state_dict(torch.load(os.path.join(args.seed, 'vae.pt')))
             vae.to(device)
         else:
             map_loc = 'cpu'
-            vae.load_state_dict(torch.load(os.path.join(args.seed, "vae.pt"),
+            vae.load_state_dict(torch.load(os.path.join(args.seed, 'vae.pt'),
                                            map_location=map_loc))
 
         # copy latent representation
@@ -182,13 +189,13 @@ def main():
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=args.gpu,
                                 early_stopping_kwargs=stopping_params)
-
+        utrainer.history['reconstruction_error_test_set'].append(0)
         # initial epoch
         utrainer.train(n_epochs=2000, lr=learning_rate)
 
         # drop learning rate and continue
         utrainer.early_stopping.wait = 0
-        utrainer.train(n_epochs=500, lr=0.1 * learning_rate)
+        utrainer.train(n_epochs=500, lr=0.5 * learning_rate)
 
         # save VAE
         torch.save(vae.state_dict(), os.path.join(args.out_dir, 'vae.pt'))
@@ -213,9 +220,9 @@ def main():
         cells_ids[cell_id].append(gene)
 
     # choose doublets function type
-    if args.doublet_type == "average":
+    if args.doublet_type == 'average':
         doublet_function = create_average_doublet
-    elif args.doublet_type == "sum":
+    elif args.doublet_type == 'sum':
         doublet_function = create_summed_doublet
     else:
         doublet_function = create_multinomial_doublet
@@ -279,18 +286,36 @@ def main():
     strainer.train(n_epochs=300, lr=0.1 * learning_rate)
     torch.save(classifier.state_dict(), os.path.join(args.out_dir, 'classifier.pt'))
 
+
     ##################################################
     # post-processing
+    # use logits for predictions for better results
+    logits_classifier = Classifier(n_input=(vae.n_latent + 1),
+                                   n_hidden=params['cl_hidden'],
+                                   n_layers=params['cl_layers'], n_labels=2,
+                                   dropout_rate=params['dropout_rate'],
+                                   logits=True)
+    logits_classifier.load_state_dict(classifier.state_dict())
+
+    # using logits leads to better performance in for ranking
+    logits_strainer = ClassifierTrainer(logits_classifier, classifier_data,
+                                        train_size=(1. - valid_pct),
+                                        frequency=2,
+                                        metrics_to_monitor=['accuracy'],
+                                        use_cuda=args.gpu,
+                                        sampling_model=vae, sampling_zl=True,
+                                        early_stopping_kwargs=stopping_params)
 
     # models evaluation mode
     vae.eval()
     classifier.eval()
+    logits_classifier.eval()
 
     print('Train accuracy: %.4f' % strainer.train_set.accuracy())
     print('Test accuracy:  %.4f' % strainer.test_set.accuracy())
 
     # compute predictions manually
-    # output softmaxes
+    # output logits
     train_y, train_score = strainer.train_set.compute_predictions(soft=True)
     test_y, test_score = strainer.test_set.compute_predictions(soft=True)
     # train_y == true label
@@ -319,24 +344,32 @@ def main():
         test_acc[i] = np.mean(test_y == (test_score > test_t[i]))
 
     # write predictions
+    # softmax predictions
     order_y, order_score = strainer.compute_predictions(soft=True)
-    order_score = order_score[:, 1]
-    np.save(os.path.join(args.out_dir, 'scores.npy'), order_score[:num_cells])
-    np.save(os.path.join(args.out_dir, 'scores_sim.npy'), order_score[num_cells:])
+    _, order_pred = strainer.compute_predictions()
+    doublet_score = order_score[:, 1]
+    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'), doublet_score[:num_cells])
+    np.save(os.path.join(args.out_dir, 'softmax_scores_sim.npy'), doublet_score[num_cells:])
+
+    # logit predictions
+    logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
+    logit_doublet_score = logit_score[:, 1]
+    np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
+    np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
 
     if args.expected_number_of_doublets is not None:
-        solo_scores = order_score[:num_cells]
+        solo_scores = doublet_score[:num_cells]
         k = len(solo_scores) - args.expected_number_of_doublets
         if args.expected_number_of_doublets / len(solo_scores) > .5:
-            print("""Make sure you actually expect more than half your cells
+            print('''Make sure you actually expect more than half your cells
                    to be doublets. If not change your
-                   -e parameter value""")
+                   -e parameter value''')
         assert k > 0
         idx = np.argpartition(solo_scores, k)
         threshold = np.max(solo_scores[idx[:k]])
+        is_solo_doublet = doublet_score > threshold
     else:
-        threshold = .5
-    is_solo_doublet = order_score > threshold
+        is_solo_doublet = order_pred[:num_cells]
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
@@ -345,11 +378,12 @@ def main():
     np.save(os.path.join(args.out_dir, 'is_doublet.npy'), is_doublet[:num_cells])
     np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_doublet[num_cells:])
 
-    _, order_pred = strainer.compute_predictions()
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
 
     if args.plot:
+        import matplotlib
+        matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         import seaborn as sns
         # plot ROC
@@ -377,14 +411,12 @@ def main():
         plt.figure()
         sns.distplot(test_score[test_y], label='Simulated')
         sns.distplot(test_score[~test_y], label='Observed')
-        plt.axvline(x=threshold)
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'train_v_test_dist.pdf'))
         plt.close()
 
         plt.figure()
-        sns.distplot(order_score[:num_cells], label='Simulated')
-        plt.axvline(x=threshold)
+        sns.distplot(doublet_score[:num_cells], label='Simulated')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'real_cells_dist.pdf'))
         plt.close()
