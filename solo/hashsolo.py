@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.metrics import calinski_harabaz_score
 
 '''
-HashSolo script provides a probabilstic cell hashing demultplexing method
+HashSolo script provides a probabilistic cell hashing demultiplexing method
 which generates a noise distribution and signal distribution for
 each hashing barcode from empirically observed counts. These distributions
 are updates from the global signal and noise barcode distributions, which

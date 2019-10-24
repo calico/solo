@@ -123,7 +123,7 @@ model_json example:
 ```
 
 Priors is a list of the probability of the three hypotheses, negative, singlet,
-or doublet, we test when demultiplex cell hashing data. A negative cell barcodes
+or doublet that we test when demultiplexing cell hashing data. A negative cell's barcodes
 doesn't have enough signal to identify its sample of origin. A singlet has
 enough signal from single hashing barcode to associate the cell with ins
 originating sample. A doublet is a cell barcode which has signal for more than one hashing barcode.

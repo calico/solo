@@ -73,14 +73,14 @@ def main():
                         help='Experimentally expected number of doublets',
                         type=int, default=None)
     parser.add_argument('-p', dest='plot',
-                        default=True, action='store_false',
-                        help='Plot outputs')
-    parser.add_argument('-l', dest='debug',
-                        default=True, action='store_false',
-                        help='Logging level set to normal')
+                        default=False, action='store_true',
+                        help='Plot outputs for solo')
+    parser.add_argument('-l', dest='normal_logging',
+                        default=False, action='store_true',
+                        help='Logging level set to normal (aka not debug)')
     args = parser.parse_args()
 
-    if args.debug:
+    if not args.normal_logging:
         scvi._settings.set_verbosity(10)
 
     model_json_file = args.model_json_file
