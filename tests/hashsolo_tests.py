@@ -21,7 +21,7 @@ def test_cell_demultiplexing():
         col_pos = (idx % 10) - 1
         x[idx, col_pos] = signal_count
     test_data = AnnData(x)
-    hashsolo.demultiplex_cell_hashing(test_data)
+    hashsolo.hashsolo(test_data)
 
     doublets = ['Doublet'] * 10
     classes = list(np.repeat(np.arange(10), 98).reshape(98, 10,
