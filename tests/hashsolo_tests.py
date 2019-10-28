@@ -1,6 +1,6 @@
 import pytest
 
-from solo import demultiplex
+from solo import hashsolo
 
 from anndata import AnnData
 import numpy as np
@@ -21,7 +21,7 @@ def test_cell_demultiplexing():
         col_pos = (idx % 10) - 1
         x[idx, col_pos] = signal_count
     test_data = AnnData(x)
-    demultiplex.demultiplex_cell_hashing(test_data)
+    hashsolo.demultiplex_cell_hashing(test_data)
 
     doublets = ['Doublet'] * 10
     classes = list(np.repeat(np.arange(10), 98).reshape(98, 10,
@@ -35,18 +35,18 @@ def test_cell_demultiplexing():
     classes = [1] * 980
     negatives = [0] * 10
     classification = doublets + classes + negatives
-    ll_results = np.argmax(demultiplex._calculate_log_likelihoods(x, 8)[0],
+    ll_results = np.argmax(hashsolo._calculate_log_likelihoods(x, 8)[0],
                            axis=1)
     assert all(ll_results == classification)
 
-    bayes_results = demultiplex._calculate_bayes_rule(x, [.1, .8, .1], 8)
+    bayes_results = hashsolo._calculate_bayes_rule(x, [.1, .8, .1], 8)
     assert all(bayes_results['most_likely_hypothesis'] == classification)
 
     singlet_prior = .99999999999999999
     other_prior = (1 - singlet_prior)/2
-    bayes_results = demultiplex._calculate_bayes_rule(x,
-                                                      [other_prior,
-                                                       singlet_prior,
-                                                       other_prior], 8)
+    bayes_results = hashsolo._calculate_bayes_rule(x,
+                                                   [other_prior,
+                                                    singlet_prior,
+                                                    other_prior], 8)
     assert all(bayes_results['most_likely_hypothesis'] == 1)
 
