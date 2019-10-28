@@ -5,7 +5,7 @@ h5py==2.9.0
 joblib==0.13.2
 mock==3.0.5
 natsort==6.0.0
-networkx==2.3
+networkx==2.2
 numexpr==2.6.9
 pandas==0.24.2
 patsy==0.5.1
@@ -22,5 +22,8 @@ tqdm==4.32.1
 umap-learn==0.3.8
 scikit-learn==0.19.1
 numba==0.45
+numpy>=1.16.4
 scvi==0.4.1
 dataclasses==0.6
+leidenalg==0.7.0
+pytest==5.2.1
