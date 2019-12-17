@@ -27,3 +27,5 @@ scvi==0.4.1
 dataclasses==0.6
 leidenalg==0.7.0
 pytest==5.2.1
+prompt-toolkit==2.0.9
+torch==1.0.1
