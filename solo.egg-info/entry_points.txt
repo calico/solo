@@ -1,4 +1,0 @@
-[console_scripts]
-hashsolo = solo.hashsolo:main
-solo = solo.solo:main
-
