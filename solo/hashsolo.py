@@ -7,7 +7,6 @@ from scipy.stats import norm
 from itertools import product
 import anndata
 import numpy as np
-import scanpy as sc
 import pandas as pd
 
 from sklearn.metrics import calinski_harabaz_score
@@ -195,44 +194,6 @@ def _calculate_bayes_rule(data, priors, number_of_noise_barcodes):
             'log_likelihoods_for_each_hypothesis': log_likelihoods_for_each_hypothesis}
 
 
-def _get_clusters(clustering_data: anndata.AnnData,
-                  resolutions: list):
-    '''
-    Principled cell clustering
-
-    Parameters
-    ----------
-    cell_hashing_adata : anndata.AnnData
-        Anndata object filled only with hashing counts
-    resolutions : list
-        clustering resolutions for leiden
-
-    Returns
-    -------
-    np.ndarray
-        leiden clustering results for each cell
-    '''
-    sc.pp.normalize_per_cell(clustering_data, counts_per_cell_after=1e4)
-    sc.pp.log1p(clustering_data)
-    sc.pp.highly_variable_genes(clustering_data, min_mean=0.0125, max_mean=3, min_disp=0.5)
-    clustering_data = clustering_data[:, clustering_data.var['highly_variable']]
-    sc.pp.scale(clustering_data, max_value=10)
-    sc.tl.pca(clustering_data, svd_solver='arpack')
-    sc.pp.neighbors(clustering_data, n_neighbors=10, n_pcs=40)
-    sc.tl.umap(clustering_data)
-    best_ch_score = -np.inf
-
-    for resolution in resolutions:
-        sc.tl.leiden(clustering_data, resolution=resolution)
-
-        ch_score = calinski_harabaz_score(clustering_data.X, clustering_data.obs['leiden'])
-
-        if ch_score > best_ch_score:
-            clustering_data.obs['best_leiden'] = clustering_data.obs['leiden'].values
-            best_ch_score = ch_score
-    return clustering_data.obs['best_leiden'].values
-
-
 def hashsolo(cell_hashing_adata: anndata.AnnData,
                              priors: list = [.01, .8, .19],
                              pre_existing_clusters: str = None,
@@ -270,13 +231,6 @@ def hashsolo(cell_hashing_adata: anndata.AnnData,
         if inplace is False returns AnnData with demultiplexing results
         in .obs attribute otherwise does is in place
     '''
-
-    if clustering_data is not None:
-        print('This may take awhile we are running clustering at {} different resolutions'.format(len(resolutions)))
-        if not all(clustering_data.obs_names == cell_hashing_adata.obs_names):
-            raise ValueError(
-                'clustering_data and cell hashing cell_hashing_adata must have same index')
-        cell_hashing_adata.obs['best_leiden'] = _get_clusters(clustering_data, resolutions)
 
     data = cell_hashing_adata.X
     num_of_cells = cell_hashing_adata.shape[0]
