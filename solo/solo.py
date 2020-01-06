@@ -46,6 +46,10 @@ def main():
     parser.add_argument('-g', dest='gpu',
                         default=True, action='store_true',
                         help='Run on GPU')
+    parser.add_argument('-a', dest='anndata_output',
+                        default=False, action='store_true',
+                        help='output modified anndata object with solo scores \
+                        Only works for anndata')
     parser.add_argument('-o', dest='out_dir',
                         default='solo_out')
     parser.add_argument('-r', dest='doublet_ratio',
@@ -100,7 +104,8 @@ def main():
     if data_ext == '.loom':
         scvi_data = LoomDataset(data_file)
     elif data_ext == '.h5ad':
-        scvi_data = AnnDatasetFromAnnData(anndata.read(data_file))
+        adata = anndata.read(data_file)
+        scvi_data = AnnDatasetFromAnnData(adata)
     else:
         msg = f'{data_ext} is not a recognized format.\n'
         msg += 'must be one of {h5ad, loom}'
@@ -380,7 +385,13 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
-
+    
+    if args.anndata_output and data_ext == '.h5ad':
+        adata.obs['is_doublet'] = is_doublet[:num_cells]
+        adata.obs['logit_scores'] = logit_doublet_score[:num_cells]
+        adata.obs['softmax_scores'] = doublet_score[:num_cells]
+        adata.write(os.path.join(args.out_dir, "soloed.h5ad"))
+        
     if args.plot:
         import matplotlib
         matplotlib.use('Agg')
