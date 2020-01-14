@@ -67,12 +67,14 @@ Outputs:
 * `classifier.pt` scVI weights for classifier
 * `latent.npy` latent embedding for each cell             
 * `preds.npy` doublet predictions
-* `scores.npy`	doublet scores
+* `softmax_scores.npy`	softmax of doublet scores
+* `logit_scores.npy`	logit of doublet scores
 * `real_cells_dist.pdf` histogram of distribution of doublet scores
 *  `accuracy.pdf` accuracy plot test vs train
 *  `train_v_test_dist.pdf` doublet scores of test vs train
 *  `roc.pdf`	roc of test vs train
-*  `scores_sim.npy` see above but for simulated doublets
+*  `softmax_scores_sim.npy` see above but for simulated doublets
+*  `logit_scores_sim.npy` see above but for simulated doublets
 *  `preds_sim.npy`	see above but for simulated doublets
 *  `is_doublet_sim.npy` see above but for simulated doublets
 
