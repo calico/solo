@@ -8,6 +8,11 @@ Cells subjected to single cell RNA-seq have been through a lot, and they'd reall
 Run the following to clone and set up ve.
 `git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.6 && conda activate solo && pip install -e .`
 
+Or install via pip
+`conda create -n solo python=3.6 && conda activate solo && pip install -e solo-sc`
+
+Solo currently is only known to work with python 3.6.
+
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
 ### How to solo
