@@ -1,0 +1,13 @@
+README.md
+setup.cfg
+setup.py
+solo/__init__.py
+solo/hashsolo.py
+solo/solo.py
+solo/utils.py
+solo_sc.egg-info/PKG-INFO
+solo_sc.egg-info/SOURCES.txt
+solo_sc.egg-info/dependency_links.txt
+solo_sc.egg-info/entry_points.txt
+solo_sc.egg-info/requires.txt
+solo_sc.egg-info/top_level.txt
