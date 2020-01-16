@@ -1,6 +1,6 @@
 # solo
 ### Why
-Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles.
+Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles. https://www.biorxiv.org/content/10.1101/841981v1
 
 **_solo_** is a neural network framework to classify doublets, so that you can remove them from your data and clean your single cell profile.
 
