@@ -83,13 +83,13 @@ def main():
     parser.add_argument('-l', dest='normal_logging',
                         default=False, action='store_true',
                         help='Logging level set to normal (aka not debug)')
-    parser.add_option('--random_size', dest='randomize_doublet_size',
-                      default=False,
-                      action='store_true',
-                      help='Sample depth multipliers from Unif(1, \
-                      DoubletDepth) \
-                      to provide a diversity of possible doublet depths.'
-                      )
+    parser.add_argument('--random_size', dest='randomize_doublet_size',
+                        default=False,
+                        action='store_true',
+                        help='Sample depth multipliers from Unif(1, \
+                        DoubletDepth) \
+                        to provide a diversity of possible doublet depths.'
+                        )
     args = parser.parse_args()
 
     if not args.normal_logging:
