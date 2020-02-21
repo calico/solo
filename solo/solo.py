@@ -18,7 +18,8 @@ from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
 
 from .utils import create_average_doublet, create_summed_doublet, \
-    create_multinomial_doublet, make_gene_expression_dataset
+    create_multinomial_doublet, make_gene_expression_dataset, \
+    knn_smooth_pred_class
 
 '''
 solo.py
@@ -385,13 +386,16 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
-    
+
+    smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet[:num_cells])
+    np.save(os.path.join(args.out_dir, 'smoothed_preds.npy'), smoothed_preds)
+
     if args.anndata_output and data_ext == '.h5ad':
         adata.obs['is_doublet'] = is_doublet[:num_cells]
         adata.obs['logit_scores'] = logit_doublet_score[:num_cells]
         adata.obs['softmax_scores'] = doublet_score[:num_cells]
         adata.write(os.path.join(args.out_dir, "soloed.h5ad"))
-        
+
     if args.plot:
         import matplotlib
         matplotlib.use('Agg')
