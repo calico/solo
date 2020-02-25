@@ -299,13 +299,22 @@ def main():
     trainer_scanvi.unlabelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 1).ravel())
     trainer_scanvi.unlabelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     # initial
-    trainer_scanvi.train(n_epochs=200, lr=learning_rate)
+    trainer_scanvi.train(n_epochs=50, lr=learning_rate)
 
     # drop learning rate and continue
     trainer_scanvi.early_stopping.wait = 0
-    trainer_scanvi.train(n_epochs=50, lr=0.1 * learning_rate)
+    trainer_scanvi.train(n_epochs=25, lr=0.1 * learning_rate)
     strainer = trainer_scanvi.labelled_set
-    torch.save(trainer_scanvi.state_dict(), os.path.join(args.out_dir, 'scanvi.pt'))
+    torch.save(scanvi.state_dict(), os.path.join(args.out_dir, 'scanvi.pt'))
+
+    accuracy_labelled_set = trainer_scanvi.history["accuracy_labelled_set"]
+    accuracy_unlabelled_set = trainer_scanvi.history["accuracy_unlabelled_set"]
+    x = np.linspace(0, 75, (len(accuracy_labelled_set)))
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(x, accuracy_labelled_set, label="accuracy labelled")
+    ax.plot(x, accuracy_unlabelled_set, label="accuracy unlabelled")
+    plt.savefig(os.path.join(args.out_dir, 'accuracy.pdf'))
 
     # models evaluation mode
     vae.eval()
