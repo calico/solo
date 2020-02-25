@@ -13,8 +13,8 @@ from collections import defaultdict
 import scvi
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
     GeneExpressionDataset
-from scvi.models import Classifier, VAE
-from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
+from scvi.models import Classifier, VAE, SCANVI
+from scvi.inference import UnsupervisedTrainer, ClassifierTrainer, JointSemiSupervisedTrainer, SemiSupervisedTrainer
 import torch
 
 from .utils import create_average_doublet, create_summed_doublet, \
