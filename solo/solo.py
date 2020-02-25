@@ -291,8 +291,9 @@ def main():
     #         scanvi._modules[k] = v
     scanvi.load_state_dict(vae.state_dict(), strict=False)
 
-    trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data, frequency=5,
-                                           early_stopping_kwargs=stopping_params)
+    trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data,
+                                           early_stopping_kwargs=stopping_params,
+                                           metrics_to_monitor=['reconstruction_error', 'accuracy'])
     trainer_scanvi.labelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 0).ravel())
     trainer_scanvi.labelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     trainer_scanvi.unlabelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 1).ravel())
