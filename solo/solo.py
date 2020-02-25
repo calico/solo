@@ -295,6 +295,8 @@ def main():
                                            early_stopping_kwargs=stopping_params)
     trainer_scanvi.labelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 0).ravel())
     trainer_scanvi.labelled_set.to_monitor = ['reconstruction_error', 'accuracy']
+    trainer_scanvi.unlabelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 1).ravel())
+    trainer_scanvi.unlabelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     # initial
     trainer_scanvi.train(n_epochs=1000, lr=learning_rate)
 
