@@ -264,7 +264,7 @@ def main():
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=args.doublet_depth,
                              cell_depths=cell_depths, cells_ids=cells_ids,
-                             randomize_doublet_size=randomize_doublet_size)
+                             randomize_doublet_size=args.randomize_doublet_size)
 
     # merge datasets
     # we can maybe up sample the known doublets
