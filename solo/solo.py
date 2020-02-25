@@ -306,15 +306,19 @@ def main():
     trainer_scanvi.train(n_epochs=25, lr=0.1 * learning_rate)
     strainer = trainer_scanvi.labelled_set
     torch.save(scanvi.state_dict(), os.path.join(args.out_dir, 'scanvi.pt'))
+    import pickle
 
+    def save_object(obj, filename):
+        with open(filename, 'wb') as output:  # Overwrites any existing file.
+            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+    save_object(trainer_scanvi, os.path.join(args.out_dir, 'scanvi_trainer.pickle'))
     accuracy_labelled_set = trainer_scanvi.history["accuracy_labelled_set"]
     accuracy_unlabelled_set = trainer_scanvi.history["accuracy_unlabelled_set"]
     x = np.linspace(0, 75, (len(accuracy_labelled_set)))
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot(x, accuracy_labelled_set, label="accuracy labelled")
-    ax.plot(x, accuracy_unlabelled_set, label="accuracy unlabelled")
-    plt.savefig(os.path.join(args.out_dir, 'accuracy.pdf'))
+    plt.savefig(os.path.join(args.out_dir, 'accuracy_over_training.pdf'))
 
     # models evaluation mode
     vae.eval()
