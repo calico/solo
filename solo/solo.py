@@ -90,6 +90,12 @@ def main():
                         DoubletDepth) \
                         to provide a diversity of possible doublet depths.'
                         )
+    parser.add_argument('--no-fix-vae-wieghts', dest='fix_vae_wieghts',
+                        default=True,
+                        action='store_false',
+                        help='allow vae weights to change during classification \
+                        Use Scanc.'
+                        )
     args = parser.parse_args()
 
     if not args.normal_logging:
@@ -275,101 +281,41 @@ def main():
 
     ##################################################
     # classifier
+    classifier_data.n_labels = 2
+    cls_params = {'n_hidden': params['cl_hidden'],
+                  'n_layers': params['cl_layers'],
+                  'dropout_rate': params['dropout_rate']}
+    scanvi = SCANVI(classifier_data.nb_genes, n_labels=classifier_data.n_labels, classifier_parameters=cls_params,  **vae_params)
+    # for k, v in vae._modules.items():
+    #     if scanvi._modules.get(k) is not None:
+    #         scanvi._modules[k] = v
+    scanvi.load_state_dict(vae.state_dict(), strict=False)
 
-    # model
-    classifier = Classifier(n_input=(vae.n_latent + 1),
-                            n_hidden=params['cl_hidden'],
-                            n_layers=params['cl_layers'], n_labels=2,
-                            dropout_rate=params['dropout_rate'])
-
-    # trainer
-    stopping_params['early_stopping_metric'] = 'accuracy'
-    stopping_params['save_best_state_metric'] = 'accuracy'
-    strainer = ClassifierTrainer(classifier, classifier_data,
-                                 train_size=(1. - valid_pct),
-                                 frequency=2, metrics_to_monitor=['accuracy'],
-                                 use_cuda=args.gpu,
-                                 sampling_model=vae, sampling_zl=True,
-                                 early_stopping_kwargs=stopping_params)
-
+    trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data, frequency=5,
+                                           early_stopping_kwargs=stopping_params)
+    trainer_scanvi.labelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 0).ravel())
+    trainer_scanvi.labelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     # initial
-    strainer.train(n_epochs=1000, lr=learning_rate)
+    trainer_scanvi.train(n_epochs=1000, lr=learning_rate)
 
     # drop learning rate and continue
-    strainer.early_stopping.wait = 0
-    strainer.train(n_epochs=300, lr=0.1 * learning_rate)
-    torch.save(classifier.state_dict(), os.path.join(args.out_dir, 'classifier.pt'))
-
-
-    ##################################################
-    # post-processing
-    # use logits for predictions for better results
-    logits_classifier = Classifier(n_input=(vae.n_latent + 1),
-                                   n_hidden=params['cl_hidden'],
-                                   n_layers=params['cl_layers'], n_labels=2,
-                                   dropout_rate=params['dropout_rate'],
-                                   logits=True)
-    logits_classifier.load_state_dict(classifier.state_dict())
-
-    # using logits leads to better performance in for ranking
-    logits_strainer = ClassifierTrainer(logits_classifier, classifier_data,
-                                        train_size=(1. - valid_pct),
-                                        frequency=2,
-                                        metrics_to_monitor=['accuracy'],
-                                        use_cuda=args.gpu,
-                                        sampling_model=vae, sampling_zl=True,
-                                        early_stopping_kwargs=stopping_params)
+    trainer_scanvi.early_stopping.wait = 0
+    trainer_scanvi.train(n_epochs=300, lr=0.1 * learning_rate)
+    strainer = trainer_scanvi.labelled_set
 
     # models evaluation mode
     vae.eval()
-    classifier.eval()
-    logits_classifier.eval()
-
-    print('Train accuracy: %.4f' % strainer.train_set.accuracy())
-    print('Test accuracy:  %.4f' % strainer.test_set.accuracy())
-
-    # compute predictions manually
-    # output logits
-    train_y, train_score = strainer.train_set.compute_predictions(soft=True)
-    test_y, test_score = strainer.test_set.compute_predictions(soft=True)
-    # train_y == true label
-    # train_score[:, 0] == singlet score; train_score[:, 1] == doublet score
-    train_score = train_score[:, 1]
-    train_y = train_y.astype('bool')
-    test_score = test_score[:, 1]
-    test_y = test_y.astype('bool')
-
-    train_auroc = roc_auc_score(train_y, train_score)
-    test_auroc = roc_auc_score(test_y, test_score)
-
-    print('Train AUROC: %.4f' % train_auroc)
-    print('Test AUROC:  %.4f' % test_auroc)
-
-    train_fpr, train_tpr, train_t = roc_curve(train_y, train_score)
-    test_fpr, test_tpr, test_t = roc_curve(test_y, test_score)
-    train_t = np.minimum(train_t, 1 + 1e-9)
-    test_t = np.minimum(test_t, 1 + 1e-9)
-
-    train_acc = np.zeros(len(train_t))
-    for i in range(len(train_t)):
-        train_acc[i] = np.mean(train_y == (train_score > train_t[i]))
-    test_acc = np.zeros(len(test_t))
-    for i in range(len(test_t)):
-        test_acc[i] = np.mean(test_y == (test_score > test_t[i]))
+    scanvi.eval()
 
     # write predictions
     # softmax predictions
     order_y, order_score = strainer.compute_predictions(soft=True)
     _, order_pred = strainer.compute_predictions()
     doublet_score = order_score[:, 1]
+
+
     np.save(os.path.join(args.out_dir, 'softmax_scores.npy'), doublet_score[:num_cells])
     np.save(os.path.join(args.out_dir, 'softmax_scores_sim.npy'), doublet_score[num_cells:])
-
-    # logit predictions
-    logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
-    logit_doublet_score = logit_score[:, 1]
-    np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
-    np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
 
     if args.expected_number_of_doublets is not None:
         solo_scores = doublet_score[:num_cells]
@@ -400,7 +346,6 @@ def main():
 
     if args.anndata_output and data_ext == '.h5ad':
         adata.obs['is_doublet'] = is_doublet[:num_cells]
-        adata.obs['logit_scores'] = logit_doublet_score[:num_cells]
         adata.obs['softmax_scores'] = doublet_score[:num_cells]
         adata.write(os.path.join(args.out_dir, "soloed.h5ad"))
 
