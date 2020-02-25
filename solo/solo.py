@@ -290,21 +290,22 @@ def main():
     #     if scanvi._modules.get(k) is not None:
     #         scanvi._modules[k] = v
     scanvi.load_state_dict(vae.state_dict(), strict=False)
-
+    stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
     trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data,
                                            early_stopping_kwargs=stopping_params,
-                                           metrics_to_monitor=['reconstruction_error', 'accuracy'])
+                                           metrics_to_monitor=['reconstruction_error'])
     trainer_scanvi.labelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 0).ravel())
     trainer_scanvi.labelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     trainer_scanvi.unlabelled_set = trainer_scanvi.create_posterior(indices=(classifier_data.batch_indices == 1).ravel())
     trainer_scanvi.unlabelled_set.to_monitor = ['reconstruction_error', 'accuracy']
     # initial
-    trainer_scanvi.train(n_epochs=1000, lr=learning_rate)
+    trainer_scanvi.train(n_epochs=200, lr=learning_rate)
 
     # drop learning rate and continue
     trainer_scanvi.early_stopping.wait = 0
-    trainer_scanvi.train(n_epochs=300, lr=0.1 * learning_rate)
+    trainer_scanvi.train(n_epochs=50, lr=0.1 * learning_rate)
     strainer = trainer_scanvi.labelled_set
+    torch.save(trainer_scanvi.state_dict(), os.path.join(args.out_dir, 'scanvi.pt'))
 
     # models evaluation mode
     vae.eval()
