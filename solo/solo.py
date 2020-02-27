@@ -83,7 +83,7 @@ def main():
     parser.add_argument('-l', dest='normal_logging',
                         default=False, action='store_true',
                         help='Logging level set to normal (aka not debug)')
-    parser.add_argument('--random-size', dest='randomize_doublet_size',
+    parser.add_argument('--random_size', dest='randomize_doublet_size',
                         default=False,
                         action='store_true',
                         help='Sample depth multipliers from Unif(1, \
@@ -263,8 +263,12 @@ def main():
         in_silico_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=args.doublet_depth,
+<<<<<<< HEAD
                              cell_depths=cell_depths, cells_ids=cells_ids,
                              randomize_doublet_size=args.randomize_doublet_size)
+=======
+                             cell_depths=cell_depths, cells_ids=cells_ids)
+>>>>>>> parent of c76eed2... adding randomize keyword
 
     # merge datasets
     # we can maybe up sample the known doublets
