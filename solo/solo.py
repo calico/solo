@@ -292,13 +292,20 @@ def main():
                                  sampling_model=vae, sampling_zl=True,
                                  early_stopping_kwargs=stopping_params)
 
-    # initial
-    strainer.train(n_epochs=1000, lr=learning_rate)
+    n_epochs_1 = 50
+    n_epochs_2 = 25
 
-    # drop learning rate and continue
-    strainer.early_stopping.wait = 0
-    strainer.train(n_epochs=300, lr=0.1 * learning_rate)
-    torch.save(classifier.state_dict(), os.path.join(args.out_dir, 'classifier.pt'))
+    for epoch in range(n_epochs_1):
+        # initial
+        strainer.train(n_epochs=1, lr=learning_rate)
+        torch.save(classifier.state_dict(), os.path.join(args.out_dir, f'classifier_{epoch}.pt'))
+
+
+    for epoch in range(n_epochs_1):
+        # initial
+        epoch += n_epochs_1
+        strainer.train(n_epochs=1, lr=0.1 * learning_rate)
+        torch.save(classifier.state_dict(), os.path.join(args.out_dir, f'classifier_{epoch}.pt'))
 
 
     ##################################################
