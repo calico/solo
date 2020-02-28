@@ -315,7 +315,7 @@ def main():
         trainer_scanvi.train(n_epochs=1, lr=learning_rate)
             #trainer_scanvi.train(n_epochs=1, lr=learning_rate)
         torch.save(trainer_scanvi,  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
-        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_{x}.pt'), pickle_protocol=4)
         scanvi.eval()
 
         print(trainer_scanvi.history["accuracy_labelled_set"][-1])
@@ -328,7 +328,7 @@ def main():
     for x in range(35, 35 + 10):
         trainer_scanvi.train(n_epochs=1, lr=0.1 * learning_rate)
         torch.save(trainer_scanvi,  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
-        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_{x}.pt'), pickle_protocol=4)
         scanvi.eval()
 
         print(trainer_scanvi.history["accuracy_labelled_set"][-1])
