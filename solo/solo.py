@@ -13,8 +13,9 @@ from collections import defaultdict
 import scvi
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
     GeneExpressionDataset
-from scvi.models import Classifier, VAE
-from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
+from scvi.models import SCANVI, VAE
+from scvi.inference import UnsupervisedTrainer, JointSemiSupervisedTrainer, \
+    SemiSupervisedTrainer
 import torch
 
 from .utils import create_average_doublet, create_summed_doublet, \
@@ -273,6 +274,68 @@ def main():
 
     assert(len(np.unique(classifier_data.labels.flatten())) == 2)
 
+    valid_pct = params.get('valid_pct', 0.1)
+    learning_rate = params.get('learning_rate', 1e-3)
+    stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
+    classifier_data.n_labels = 2
+    cls_params = {'n_hidden': params['cl_hidden'],
+                  'n_layers': params['cl_layers'],
+                  'dropout_rate': params['dropout_rate']}
+
+    scanvi = SCANVI(classifier_data.nb_genes, n_labels=classifier_data.n_labels, classifier_parameters=cls_params,  **vae_params)
+    # for k, v in vae._modules.items():
+    #     if scanvi._modules.get(k) is not None:
+    #         scanvi._modules[k] = v
+    scanvi.load_state_dict(vae.state_dict(), strict=False)
+    import random
+    # In-place shuffle
+    indices = list(range(classifier_data.X.shape[0]))
+    random.shuffle(indices)
+    train = indices[:int(len(indices) * .8)]
+    valid = indices[int(len(indices) * .8):]
+
+    torch.save(scanvi.state_dict(), os.path.join(args.out_dir, f'scanvi_no_train.pt'), pickle_protocol=4)
+
+    stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
+
+    trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data, frequency=1,
+                                     early_stopping_kwargs=stopping_params,
+                                            metrics_to_monitor=['reconstruction_error', 'accuracy'])
+
+    trainer_scanvi.labelled_set = trainer_scanvi.create_posterior(indices=np.array(train).ravel())
+    trainer_scanvi.labelled_set.to_monitor = ['reconstruction_error', 'accuracy']
+    trainer_scanvi.unlabelled_set = trainer_scanvi.create_posterior(indices=np.array(valid).ravel())
+    trainer_scanvi.unlabelled_set.to_monitor = ['reconstruction_error', 'accuracy']
+    torch.save(trainer_scanvi, os.path.join(args.out_dir, f'scanvi_trainer_no_train.pt'), pickle_protocol=4)
+
+
+    # initial
+    for x in range(35):
+
+        trainer_scanvi.train(n_epochs=1, lr=learning_rate)
+            #trainer_scanvi.train(n_epochs=1, lr=learning_rate)
+        torch.save(trainer_scanvi,  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        scanvi.eval()
+
+        print(trainer_scanvi.history["accuracy_labelled_set"][-1])
+        print(trainer_scanvi.history["accuracy_unlabelled_set"][-1])
+
+        scanvi.train()
+
+    trainer_scanvi.early_stopping.wait = 0
+
+    for x in range(35, 35 + 10):
+        trainer_scanvi.train(n_epochs=1, lr=0.1 * learning_rate)
+        torch.save(trainer_scanvi,  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        torch.save(scanvi.state_dict(),  os.path.join(args.out_dir, f'scanvi_trainer_{x}.pt'), pickle_protocol=4)
+        scanvi.eval()
+
+        print(trainer_scanvi.history["accuracy_labelled_set"][-1])
+        print(trainer_scanvi.history["accuracy_unlabelled_set"][-1])
+
+        scanvi.train()
+
     ##################################################
     # classifier
 
@@ -292,20 +355,27 @@ def main():
                                  sampling_model=vae, sampling_zl=True,
                                  early_stopping_kwargs=stopping_params)
 
-    n_epochs_1 = 50
-    n_epochs_2 = 25
+    n_epochs_1 = 5
+    n_epochs_2 = 2
 
     for epoch in range(n_epochs_1):
         # initial
         strainer.train(n_epochs=1, lr=learning_rate)
         torch.save(classifier.state_dict(), os.path.join(args.out_dir, f'classifier_{epoch}.pt'))
-
+        order_y, order_score = strainer.compute_predictions(soft=True)
+        _, order_pred = strainer.compute_predictions()
+        doublet_score = order_score[:, 1]
+        np.save(os.path.join(args.out_dir, f'softmax_scores_{epoch}.npy'), doublet_score[:num_cells])
 
     for epoch in range(n_epochs_1):
         # initial
         epoch += n_epochs_1
         strainer.train(n_epochs=1, lr=0.1 * learning_rate)
         torch.save(classifier.state_dict(), os.path.join(args.out_dir, f'classifier_{epoch}.pt'))
+        order_y, order_score = strainer.compute_predictions(soft=True)
+        _, order_pred = strainer.compute_predictions()
+        doublet_score = order_score[:, 1]
+        np.save(os.path.join(args.out_dir, f'softmax_scores_{epoch}.npy'), doublet_score[:num_cells])
 
 
     ##################################################
