@@ -298,7 +298,7 @@ def main():
 
     stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
 
-    trainer_scanvi = SemiSupervisedTrainer(scanvi, classifier_data, frequency=1,
+    trainer_scanvi = JointSemiSupervisedTrainer(scanvi, classifier_data, frequency=1,
                                      early_stopping_kwargs=stopping_params,
                                             metrics_to_monitor=['reconstruction_error', 'accuracy'])
 
