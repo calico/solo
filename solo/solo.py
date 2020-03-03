@@ -16,9 +16,11 @@ from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
+import umap
 
 from .utils import create_average_doublet, create_summed_doublet, \
-    create_multinomial_doublet, make_gene_expression_dataset
+    create_multinomial_doublet, make_gene_expression_dataset, \
+    knn_smooth_pred_class
 
 '''
 solo.py
@@ -82,6 +84,13 @@ def main():
     parser.add_argument('-l', dest='normal_logging',
                         default=False, action='store_true',
                         help='Logging level set to normal (aka not debug)')
+    parser.add_argument('--random_size', dest='randomize_doublet_size',
+                        default=False,
+                        action='store_true',
+                        help='Sample depth multipliers from Unif(1, \
+                        DoubletDepth) \
+                        to provide a diversity of possible doublet depths.'
+                        )
     args = parser.parse_args()
 
     if not args.normal_logging:
@@ -179,6 +188,7 @@ def main():
 
         # copy latent representation
         latent_file = os.path.join(args.seed, 'latent.npy')
+        latent = np.load(os.path.join(args.seed, 'latent.npy'))
         if os.path.isfile(latent_file):
             shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
 
@@ -249,7 +259,8 @@ def main():
         in_silico_doublets[di, :] = \
             doublet_function(singlet_scvi_data.X, i, j,
                              doublet_depth=args.doublet_depth,
-                             cell_depths=cell_depths, cells_ids=cells_ids)
+                             cell_depths=cell_depths, cells_ids=cells_ids,
+                             randomize_doublet_size=args.randomize_doublet_size)
 
     # merge datasets
     # we can maybe up sample the known doublets
@@ -385,13 +396,16 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
-    
+
+    smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet[:num_cells])
+    np.save(os.path.join(args.out_dir, 'smoothed_preds.npy'), smoothed_preds)
+
     if args.anndata_output and data_ext == '.h5ad':
         adata.obs['is_doublet'] = is_doublet[:num_cells]
         adata.obs['logit_scores'] = logit_doublet_score[:num_cells]
         adata.obs['softmax_scores'] = doublet_score[:num_cells]
         adata.write(os.path.join(args.out_dir, "soloed.h5ad"))
-        
+
     if args.plot:
         import matplotlib
         matplotlib.use('Agg')
@@ -427,10 +441,22 @@ def main():
         plt.close()
 
         plt.figure()
-        sns.distplot(doublet_score[:num_cells], label='Simulated')
+        sns.distplot(doublet_score[:num_cells], label='Observed')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'real_cells_dist.pdf'))
         plt.close()
+
+        scvi_umap = umap.UMAP(n_neighbors=16).fit_transform(latent)
+        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        ax.scatter(scvi_umap[:, 0], scvi_umap[:, 1],
+                   c=doublet_score[:num_cells], s=8, cmap="GnBu")
+
+        ax.set_xlabel("UMAP 1")
+        ax.set_ylabel("UMAP 2")
+        ax.set_xticks([], [])
+        ax.set_yticks([], [])
+        fig.savefig(os.path.join(args.out_dir, 'umap_solo_scores.pdf'))
+
 ###############################################################################
 # __main__
 ###############################################################################
