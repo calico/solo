@@ -16,6 +16,7 @@ from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
+import umap
 
 from .utils import create_average_doublet, create_summed_doublet, \
     create_multinomial_doublet, make_gene_expression_dataset, \
@@ -187,6 +188,7 @@ def main():
 
         # copy latent representation
         latent_file = os.path.join(args.seed, 'latent.npy')
+        latent = np.load(os.path.join(args.seed, 'latent.npy'))
         if os.path.isfile(latent_file):
             shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
 
@@ -439,10 +441,22 @@ def main():
         plt.close()
 
         plt.figure()
-        sns.distplot(doublet_score[:num_cells], label='Simulated')
+        sns.distplot(doublet_score[:num_cells], label='Observed')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'real_cells_dist.pdf'))
         plt.close()
+
+        scvi_umap = umap.UMAP(n_neighbors=16).fit_transform(latent)
+        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        ax.scatter(scvi_umap[:, 0], scvi_umap[:, 1],
+                   c=doublet_score[:num_cells], s=8, cmap="GnBu")
+
+        ax.set_xlabel("UMAP 1")
+        ax.set_ylabel("UMAP 2")
+        ax.set_xticks([], [])
+        ax.set_yticks([], [])
+        fig.savefig(os.path.join(args.out_dir, 'umap_solo_scores.pdf'))
+
 ###############################################################################
 # __main__
 ###############################################################################
