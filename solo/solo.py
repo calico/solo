@@ -184,13 +184,24 @@ def main():
         else:
             map_loc = 'cpu'
             vae.load_state_dict(torch.load(os.path.join(args.seed, 'vae.pt'),
-                                           map_location=map_loc))
+                                map_location=map_loc))
 
-        # copy latent representation
-        latent_file = os.path.join(args.seed, 'latent.npy')
-        latent = np.load(os.path.join(args.seed, 'latent.npy'))
-        if os.path.isfile(latent_file):
-            shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
+        # save latent representation
+        utrainer = \
+            UnsupervisedTrainer(vae, singlet_scvi_data,
+                                train_size=(1. - valid_pct),
+                                frequency=2,
+                                metrics_to_monitor=['reconstruction_error'],
+                                use_cuda=args.gpu,
+                                early_stopping_kwargs=stopping_params)
+
+        full_posterior = utrainer.create_posterior(
+            utrainer.model,
+            singlet_scvi_data,
+            indices=np.arange(len(singlet_scvi_data)))
+        latent, _, _ = full_posterior.sequential().get_latent()
+        np.save(os.path.join(args.out_dir, 'latent.npy'),
+                latent.astype('float32'))
 
     else:
         stopping_params['early_stopping_metric'] = 'reconstruction_error'
