@@ -114,14 +114,13 @@ def main():
         scvi_data = LoomDataset(data_file)
     elif data_ext == '.h5ad':
         adata = anndata.read(data_file)
-        if issparse(scvi_data.X):
-            scvi_data.X = scvi_data.X.todense()
+        if issparse(adata.X):
+            adata.X = adata.X.todense()
         scvi_data = AnnDatasetFromAnnData(adata)
     else:
         msg = f'{data_ext} is not a recognized format.\n'
         msg += 'must be one of {h5ad, loom}'
         raise TypeError(msg)
-
 
     num_cells, num_genes = scvi_data.X.shape
 
