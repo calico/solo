@@ -396,7 +396,17 @@ def main():
         threshold = np.max(solo_scores[idx[:k]])
         is_solo_doublet = doublet_score > threshold
     else:
-        is_solo_doublet = order_pred[:num_cells]
+
+        # update threshold as a function of Solo's estimate of the number of
+        # doublets
+        # essentially a log odds update
+        softmax_scores_for_real_cells = doublet_score[:num_cells]
+        mean_softmax_scores = np.mean(softmax_scores_for_real_cells)
+        ratio_of_real_to_insilico_cells = (args.doublet_ratio / (args.doublet_ratio + 1)
+        threshold = 1 - (mean_softmax_scores / (mean_softmax_scores +
+                         ratio_of_real_to_insilico_cells))
+
+        is_solo_doublet = softmax_scores_for_real_cells > threshold
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
