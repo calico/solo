@@ -402,7 +402,7 @@ def main():
         # essentially a log odds update
         softmax_scores_for_real_cells = doublet_score[:num_cells]
         mean_softmax_scores = np.mean(softmax_scores_for_real_cells)
-        ratio_of_real_to_insilico_cells = (args.doublet_ratio / (args.doublet_ratio + 1)
+        ratio_of_real_to_insilico_cells = (args.doublet_ratio / (args.doublet_ratio + 1))
         threshold = 1 - (mean_softmax_scores / (mean_softmax_scores +
                          ratio_of_real_to_insilico_cells))
 
