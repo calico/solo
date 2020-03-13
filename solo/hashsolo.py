@@ -286,7 +286,7 @@ def hashsolo(cell_hashing_adata: anndata.AnnData,
                                     'singlet_hypothesis_probability',
                                     'doublet_hypothesis_probability', ],
                            index=cell_hashing_adata.obs_names)
-if clustering_data is not None or pre_existing_clusters is not None:
+    if clustering_data is not None or pre_existing_clusters is not None:
         cluster_features = 'best_leiden' if pre_existing_clusters is None else pre_existing_clusters
         unique_cluster_features = np.unique(cell_hashing_adata.obs[cluster_features])
         for cluster_feature in unique_cluster_features:
