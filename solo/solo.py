@@ -114,14 +114,14 @@ def main():
         scvi_data = LoomDataset(data_file)
     elif data_ext == '.h5ad':
         adata = anndata.read(data_file)
+        if issparse(adata.X):
+            adata.X = adata.X.todense()
         scvi_data = AnnDatasetFromAnnData(adata)
     else:
         msg = f'{data_ext} is not a recognized format.\n'
         msg += 'must be one of {h5ad, loom}'
         raise TypeError(msg)
 
-    if issparse(scvi_data.X):
-        scvi_data.X = scvi_data.X.todense()
     num_cells, num_genes = scvi_data.X.shape
 
     if args.known_doublets is not None:
@@ -184,13 +184,24 @@ def main():
         else:
             map_loc = 'cpu'
             vae.load_state_dict(torch.load(os.path.join(args.seed, 'vae.pt'),
-                                           map_location=map_loc))
+                                map_location=map_loc))
 
-        # copy latent representation
-        latent_file = os.path.join(args.seed, 'latent.npy')
-        latent = np.load(os.path.join(args.seed, 'latent.npy'))
-        if os.path.isfile(latent_file):
-            shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
+        # save latent representation
+        utrainer = \
+            UnsupervisedTrainer(vae, singlet_scvi_data,
+                                train_size=(1. - valid_pct),
+                                frequency=2,
+                                metrics_to_monitor=['reconstruction_error'],
+                                use_cuda=args.gpu,
+                                early_stopping_kwargs=stopping_params)
+
+        full_posterior = utrainer.create_posterior(
+            utrainer.model,
+            singlet_scvi_data,
+            indices=np.arange(len(singlet_scvi_data)))
+        latent, _, _ = full_posterior.sequential().get_latent()
+        np.save(os.path.join(args.out_dir, 'latent.npy'),
+                latent.astype('float32'))
 
     else:
         stopping_params['early_stopping_metric'] = 'reconstruction_error'
@@ -385,7 +396,17 @@ def main():
         threshold = np.max(solo_scores[idx[:k]])
         is_solo_doublet = doublet_score > threshold
     else:
-        is_solo_doublet = order_pred[:num_cells]
+
+        # update threshold as a function of Solo's estimate of the number of
+        # doublets
+        # essentially a log odds update
+        softmax_scores_for_real_cells = doublet_score[:num_cells]
+        mean_softmax_scores = np.mean(softmax_scores_for_real_cells)
+        ratio_of_real_to_insilico_cells = (args.doublet_ratio / (args.doublet_ratio + 1))
+        threshold = 1 - (mean_softmax_scores / (mean_softmax_scores +
+                         ratio_of_real_to_insilico_cells))
+
+        is_solo_doublet = softmax_scores_for_real_cells > threshold
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
