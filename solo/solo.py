@@ -400,13 +400,26 @@ def main():
         # update threshold as a function of Solo's estimate of the number of
         # doublets
         # essentially a log odds update
-        softmax_scores_for_real_cells = doublet_score[:num_cells]
-        mean_softmax_scores = np.mean(softmax_scores_for_real_cells)
-        ratio_of_real_to_insilico_cells = (args.doublet_ratio / (args.doublet_ratio + 1))
-        threshold = 1 - (mean_softmax_scores / (mean_softmax_scores +
-                         ratio_of_real_to_insilico_cells))
+        diff = np.inf
+        counter_update = 0
+        solo_scores = doublet_score[:num_cells]
+        logit_scores = logit_doublet_score[:num_cells]
+        d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
+        while (diff > .01) | (counter_update < 5):
 
-        is_solo_doublet = softmax_scores_for_real_cells > threshold
+            # calculate log odss calibration for logits
+            d_o = np.mean(solo_scores)
+            c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
+
+            # update soloe scores
+            solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
+
+            # update while conditions
+            diff = np.abs(d_o - np.mean(solo_scores))
+            counter_update += 1
+
+        np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
+                doublet_score[:num_cells])
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
