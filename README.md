@@ -9,9 +9,7 @@ Run the following to clone and set up ve.
 `git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.6 && conda activate solo && pip install -e .`
 
 Or install via pip
-`conda create -n solo python=3.6 && conda activate solo && pip install -e solo-sc`
-
-Solo currently is only known to work with python 3.6.
+`conda create -n solo python=3.7 && conda activate solo && pip install solo-sc`
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
@@ -72,7 +70,9 @@ Outputs:
 * `classifier.pt` scVI weights for classifier
 * `latent.npy` latent embedding for each cell             
 * `preds.npy` doublet predictions
-* `softmax_scores.npy`	softmax of doublet scores
+* `softmax_scores.npy` updated softmax of doublet scores (see paper)
+* `no_update_softmax_scores.npy` raw softmax of doublet scores
+
 * `logit_scores.npy`	logit of doublet scores
 * `real_cells_dist.pdf` histogram of distribution of doublet scores
 *  `accuracy.pdf` accuracy plot test vs train
@@ -83,15 +83,6 @@ Outputs:
 *  `preds_sim.npy`	see above but for simulated doublets
 *  `is_doublet_sim.npy` see above but for simulated doublets
 
-For a dataset (2c from Kang et al. 2018) with `n_obs × n_vars = 14619 × 13649`
-we get the following amount of usage on a 4GB instance on a GTX 1080 Ti.
-```
-CPU Utilized: 00:08:19
-CPU Efficiency: 94.87% of 00:08:46 core-walltime
-Job Wall-clock time: 00:08:46
-Memory Utilized: 3.95 GB
-Memory Efficiency: 98.86% of 4.00 GB
-```
 
 ### How to demultiplex cell hashing data using HashSolo CLI
 
