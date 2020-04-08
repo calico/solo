@@ -13,7 +13,7 @@ except ImportError:  # Deps not yet installed
 
 setup(
     name='solo-sc',
-    version='0.2',
+    version='0.3',
     description='Neural network classifiers for doublets',
     long_description=Path('README.md').read_text('utf-8'),
     long_description_content_type="text/markdown",
