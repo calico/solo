@@ -411,7 +411,6 @@ def main():
             solo_scores)
 
     if args.expected_number_of_doublets is not None:
-        solo_scores = doublet_score[:num_cells]
         k = len(solo_scores) - args.expected_number_of_doublets
         if args.expected_number_of_doublets / len(solo_scores) > .5:
             print('''Make sure you actually expect more than half your cells
@@ -420,9 +419,9 @@ def main():
         assert k > 0
         idx = np.argpartition(solo_scores, k)
         threshold = np.max(solo_scores[idx[:k]])
-        is_solo_doublet = doublet_score > threshold
+        is_solo_doublet = solo_scores > threshold
     else:
-        is_solo_doublet = doublet_score > .5
+        is_solo_doublet = solo_scores > .5
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
