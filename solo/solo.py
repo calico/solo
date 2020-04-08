@@ -375,14 +375,40 @@ def main():
     order_y, order_score = strainer.compute_predictions(soft=True)
     _, order_pred = strainer.compute_predictions()
     doublet_score = order_score[:, 1]
-    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'), doublet_score[:num_cells])
-    np.save(os.path.join(args.out_dir, 'softmax_scores_sim.npy'), doublet_score[num_cells:])
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores.npy'), doublet_score[:num_cells])
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
     logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
     logit_doublet_score = logit_score[:, 1]
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
+
+
+    # update threshold as a function of Solo's estimate of the number of
+    # doublets
+    # essentially a log odds update
+    # TODO put in a function
+    diff = np.inf
+    counter_update = 0
+    solo_scores = doublet_score[:num_cells]
+    logit_scores = logit_doublet_score[:num_cells]
+    d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
+    while (diff > .01) | (counter_update < 5):
+
+        # calculate log odss calibration for logits
+        d_o = np.mean(solo_scores)
+        c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
+
+        # update soloe scores
+        solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
+
+        # update while conditions
+        diff = np.abs(d_o - np.mean(solo_scores))
+        counter_update += 1
+
+    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
+            doublet_score[:num_cells])
 
     if args.expected_number_of_doublets is not None:
         solo_scores = doublet_score[:num_cells]
@@ -396,30 +422,7 @@ def main():
         threshold = np.max(solo_scores[idx[:k]])
         is_solo_doublet = doublet_score > threshold
     else:
-
-        # update threshold as a function of Solo's estimate of the number of
-        # doublets
-        # essentially a log odds update
-        diff = np.inf
-        counter_update = 0
-        solo_scores = doublet_score[:num_cells]
-        logit_scores = logit_doublet_score[:num_cells]
-        d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
-        while (diff > .01) | (counter_update < 5):
-
-            # calculate log odss calibration for logits
-            d_o = np.mean(solo_scores)
-            c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
-
-            # update soloe scores
-            solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
-
-            # update while conditions
-            diff = np.abs(d_o - np.mean(solo_scores))
-            counter_update += 1
-
-        np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
-                doublet_score[:num_cells])
+        is_solo_doublet = doublet_score > .5
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
