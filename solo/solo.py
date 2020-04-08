@@ -114,14 +114,14 @@ def main():
         scvi_data = LoomDataset(data_file)
     elif data_ext == '.h5ad':
         adata = anndata.read(data_file)
+        if issparse(adata.X):
+            adata.X = adata.X.todense()
         scvi_data = AnnDatasetFromAnnData(adata)
     else:
         msg = f'{data_ext} is not a recognized format.\n'
         msg += 'must be one of {h5ad, loom}'
         raise TypeError(msg)
 
-    if issparse(scvi_data.X):
-        scvi_data.X = scvi_data.X.todense()
     num_cells, num_genes = scvi_data.X.shape
 
     if args.known_doublets is not None:
@@ -184,13 +184,24 @@ def main():
         else:
             map_loc = 'cpu'
             vae.load_state_dict(torch.load(os.path.join(args.seed, 'vae.pt'),
-                                           map_location=map_loc))
+                                map_location=map_loc))
 
-        # copy latent representation
-        latent_file = os.path.join(args.seed, 'latent.npy')
-        latent = np.load(os.path.join(args.seed, 'latent.npy'))
-        if os.path.isfile(latent_file):
-            shutil.copy(latent_file, os.path.join(args.out_dir, 'latent.npy'))
+        # save latent representation
+        utrainer = \
+            UnsupervisedTrainer(vae, singlet_scvi_data,
+                                train_size=(1. - valid_pct),
+                                frequency=2,
+                                metrics_to_monitor=['reconstruction_error'],
+                                use_cuda=args.gpu,
+                                early_stopping_kwargs=stopping_params)
+
+        full_posterior = utrainer.create_posterior(
+            utrainer.model,
+            singlet_scvi_data,
+            indices=np.arange(len(singlet_scvi_data)))
+        latent, _, _ = full_posterior.sequential().get_latent()
+        np.save(os.path.join(args.out_dir, 'latent.npy'),
+                latent.astype('float32'))
 
     else:
         stopping_params['early_stopping_metric'] = 'reconstruction_error'
@@ -364,8 +375,8 @@ def main():
     order_y, order_score = strainer.compute_predictions(soft=True)
     _, order_pred = strainer.compute_predictions()
     doublet_score = order_score[:, 1]
-    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'), doublet_score[:num_cells])
-    np.save(os.path.join(args.out_dir, 'softmax_scores_sim.npy'), doublet_score[num_cells:])
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores.npy'), doublet_score[:num_cells])
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
     logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
@@ -373,8 +384,33 @@ def main():
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
 
+
+    # update threshold as a function of Solo's estimate of the number of
+    # doublets
+    # essentially a log odds update
+    # TODO put in a function
+    diff = np.inf
+    counter_update = 0
+    solo_scores = doublet_score[:num_cells]
+    logit_scores = logit_doublet_score[:num_cells]
+    d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
+    while (diff > .01) | (counter_update < 5):
+
+        # calculate log odss calibration for logits
+        d_o = np.mean(solo_scores)
+        c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
+
+        # update soloe scores
+        solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
+
+        # update while conditions
+        diff = np.abs(d_o - np.mean(solo_scores))
+        counter_update += 1
+
+    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
+            solo_scores)
+
     if args.expected_number_of_doublets is not None:
-        solo_scores = doublet_score[:num_cells]
         k = len(solo_scores) - args.expected_number_of_doublets
         if args.expected_number_of_doublets / len(solo_scores) > .5:
             print('''Make sure you actually expect more than half your cells
@@ -383,9 +419,9 @@ def main():
         assert k > 0
         idx = np.argpartition(solo_scores, k)
         threshold = np.max(solo_scores[idx[:k]])
-        is_solo_doublet = doublet_score > threshold
+        is_solo_doublet = solo_scores > threshold
     else:
-        is_solo_doublet = order_pred[:num_cells]
+        is_solo_doublet = solo_scores > .5
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
