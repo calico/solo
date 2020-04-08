@@ -408,7 +408,7 @@ def main():
         counter_update += 1
 
     np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
-            doublet_score[:num_cells])
+            solo_scores)
 
     if args.expected_number_of_doublets is not None:
         solo_scores = doublet_score[:num_cells]
