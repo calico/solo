@@ -23,15 +23,10 @@ setup(
     author_email=__email__,
     license='Apache',
     python_requires='>=3.6',
-    install_requires=["ConfigArgParse",
-                      "pandas",
-                      "seaborn",
-                      "tqdm",
-                      "scvi",
-                      "leidenalg",
-                      "torch",
-                      "scanpy",
-                      ],
+    install_requires=[
+        l.strip() for l in
+        Path('requirements.txt').read_text('utf-8').splitlines()
+        ],
     packages=find_packages(),
     entry_points=dict(
         console_scripts=['solo=solo.solo:main',
