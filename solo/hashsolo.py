@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from sklearn.metrics import calinski_harabaz_score
+from sklearn.metrics import calinski_harabasz_score
 
 '''
 HashSolo script provides a probabilistic cell hashing demultiplexing method
@@ -223,7 +223,7 @@ def _get_clusters(clustering_data: anndata.AnnData,
     for resolution in resolutions:
         sc.tl.leiden(clustering_data, resolution=resolution)
 
-        ch_score = calinski_harabaz_score(clustering_data.X, clustering_data.obs['leiden'])
+        ch_score = calinski_harabasz_score(clustering_data.X, clustering_data.obs['leiden'])
 
         if ch_score > best_ch_score:
             clustering_data.obs['best_leiden'] = clustering_data.obs['leiden'].values
