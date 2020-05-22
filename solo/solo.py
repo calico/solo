@@ -12,7 +12,7 @@ from collections import defaultdict
 
 import scvi
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
-    GeneExpressionDataset
+    GeneExpressionDataset, Dataset10X
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
@@ -39,8 +39,8 @@ def main():
     parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(dest='model_json_file',
                         help='json file to pass VAE parameters')
-    parser.add_argument(dest='data_file',
-                        help='h5ad file containing cell by genes counts')
+    parser.add_argument(dest='data_path',
+                        help='path to h5ad, loom or 10x directory containing cell by genes counts')
     parser.add_argument('-d', dest='doublet_depth',
                         default=2., type=float,
                         help='Depth multiplier for a doublet relative to the \
@@ -97,7 +97,7 @@ def main():
         scvi._settings.set_verbosity(10)
 
     model_json_file = args.model_json_file
-    data_file = args.data_file
+    data_path = args.data_path
     if args.gpu and not torch.cuda.is_available():
         args.gpu = torch.cuda.is_available()
         print('Cuda is not available, switching to cpu running!')
@@ -109,17 +109,28 @@ def main():
     # data
 
     # read loom/anndata
-    data_ext = os.path.splitext(data_file)[-1]
+    data_ext = os.path.splitext(data_path)[-1]
     if data_ext == '.loom':
-        scvi_data = LoomDataset(data_file)
+        scvi_data = LoomDataset(data_path)
     elif data_ext == '.h5ad':
-        adata = anndata.read(data_file)
+        adata = anndata.read(data_path)
         if issparse(adata.X):
             adata.X = adata.X.todense()
         scvi_data = AnnDatasetFromAnnData(adata)
+    elif os.path.isdir(data_path):
+        scvi_data = Dataset10X(save_path=data_path,
+                               measurement_names_column=1,)
+        cell_umi_depth = scvi_data.X.sum(axis=1)
+        fifth, ninetyfifth = np.percentile(cell_umi_depth, [5, 95])
+        min_cell_umi_depth = np.min(cell_umi_depth)
+        max_cell_umi_depth = np.max(cell_umi_depth)
+        if fifth * 10 < ninetyfifth:
+            print("""WARNING YOUR DATA HAS A WIDE RANGE OF CELL DEPTHS.
+            PLEASE MANUALLY REVIEW YOUR DATA""")
+        print(f"Min cell depth: {min_cell_umi_depth}, Max cell depth: {max_cell_umi_depth}")
     else:
-        msg = f'{data_ext} is not a recognized format.\n'
-        msg += 'must be one of {h5ad, loom}'
+        msg = f'{data_path} is not a recognized format.\n'
+        msg += 'must be one of {h5ad, loom, 10x directory}'
         raise TypeError(msg)
 
     num_cells, num_genes = scvi_data.X.shape

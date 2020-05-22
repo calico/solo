@@ -22,7 +22,8 @@ usage: solo [-h] [-d DOUBLET_DEPTH] [-g] [-o OUT_DIR] [-r DOUBLET_RATIO]
 
 positional arguments:
   model_json_file       json file to pass VAE parameters
-  data_file             h5ad file containing cell by genes counts
+  data_file             path to h5ad, loom or 10x directory containing cell by
+                        genes counts
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -49,6 +50,8 @@ optional arguments:
                         None)
   -p                    Plot outputs (default: True)
 ```
+
+Warning: If you are going directly from cellranger 10x output you may want to manually inspect your data prior to running solo.
 
 model_json example:
 ```
