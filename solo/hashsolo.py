@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
+from scipy.sparse import issparse
 from sklearn.metrics import calinski_harabasz_score
 
 '''
@@ -268,7 +269,9 @@ def hashsolo(cell_hashing_adata: anndata.AnnData,
         if inplace is False returns AnnData with demultiplexing results
         in .obs attribute otherwise does is in place
     '''
-
+    if issparse(cell_hashing_adata.X):
+        cell_hashing_adata.X = np.array(cell_hashing_adata.X.todense())
+    
     if clustering_data is not None:
         print('This may take awhile we are running clustering at {} different resolutions'.format(len(resolutions)))
         if not all(clustering_data.obs_names == cell_hashing_adata.obs_names):
