@@ -119,7 +119,8 @@ def main():
         scvi_data = AnnDatasetFromAnnData(adata)
     elif os.path.isdir(data_path):
         scvi_data = Dataset10X(save_path=data_path,
-                               measurement_names_column=1,)
+                               measurement_names_column=1,
+                               dense=True)
         cell_umi_depth = scvi_data.X.sum(axis=1)
         fifth, ninetyfifth = np.percentile(cell_umi_depth, [5, 95])
         min_cell_umi_depth = np.min(cell_umi_depth)
