@@ -177,9 +177,15 @@ def main():
         'ignore_batch', False) else scvi_data.n_batches
 
     # training parameters
+    batch_size = params.get('batch_size', 128)
     valid_pct = params.get('valid_pct', 0.1)
     learning_rate = params.get('learning_rate', 1e-3)
     stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
+
+    # protect against single example batch
+    while num_cells % batch_size == 1:
+        batch_size = int(np.round(1.25*batch_size))
+        print('Increasing batch_size to %d to avoid single example batch.' % batch_size)
 
     ##################################################
     # VAE
@@ -205,13 +211,14 @@ def main():
                                 frequency=2,
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=args.gpu,
-                                early_stopping_kwargs=stopping_params)
+                                early_stopping_kwargs=stopping_params,
+                                batch_size=batch_size)
 
         full_posterior = utrainer.create_posterior(
             utrainer.model,
             singlet_scvi_data,
             indices=np.arange(len(singlet_scvi_data)))
-        latent, _, _ = full_posterior.sequential().get_latent()
+        latent, _, _ = full_posterior.sequential(batch_size).get_latent()
         np.save(os.path.join(args.out_dir, 'latent.npy'),
                 latent.astype('float32'))
 
@@ -226,7 +233,8 @@ def main():
                                 frequency=2,
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=args.gpu,
-                                early_stopping_kwargs=stopping_params)
+                                early_stopping_kwargs=stopping_params,
+                                batch_size=batch_size)
         utrainer.history['reconstruction_error_test_set'].append(0)
         # initial epoch
         utrainer.train(n_epochs=2000, lr=learning_rate)
@@ -243,7 +251,7 @@ def main():
             utrainer.model,
             singlet_scvi_data,
             indices=np.arange(len(singlet_scvi_data)))
-        latent, _, _ = full_posterior.sequential().get_latent()
+        latent, _, _ = full_posterior.sequential(batch_size).get_latent()
         np.save(os.path.join(args.out_dir, 'latent.npy'),
                 latent.astype('float32'))
 
@@ -315,7 +323,8 @@ def main():
                                  frequency=2, metrics_to_monitor=['accuracy'],
                                  use_cuda=args.gpu,
                                  sampling_model=vae, sampling_zl=True,
-                                 early_stopping_kwargs=stopping_params)
+                                 early_stopping_kwargs=stopping_params,
+                                 batch_size=batch_size)
 
     # initial
     strainer.train(n_epochs=1000, lr=learning_rate)
@@ -343,7 +352,8 @@ def main():
                                         metrics_to_monitor=['accuracy'],
                                         use_cuda=args.gpu,
                                         sampling_model=vae, sampling_zl=True,
-                                        early_stopping_kwargs=stopping_params)
+                                        early_stopping_kwargs=stopping_params,
+                                        batch_size=batch_size)
 
     # models evaluation mode
     vae.eval()
