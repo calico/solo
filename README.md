@@ -1,6 +1,6 @@
 # solo -- Doublet detection via semi-supervised deep learning
 ### Why
-Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles. https://www.biorxiv.org/content/10.1101/841981v1
+Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles. https://www.cell.com/cell-systems/fulltext/S2405-4712(20)30195-2
 
 **_solo_** is a neural network framework to classify doublets, so that you can remove them from your data and clean your single cell profile.
 
