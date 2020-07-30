@@ -398,12 +398,16 @@ def main():
     _, order_pred = strainer.compute_predictions()
     doublet_score = order_score[:, 1]
     np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores.npy'), doublet_score[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'no_updates_softmax_scores.csv'), doublet_score[:num_cells], delimiter=",")
+
     np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
     logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
     logit_doublet_score = logit_score[:, 1]
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'logit_scores.csv'), logit_doublet_score[:num_cells], delimiter=",")
+
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
 
 
@@ -418,11 +422,11 @@ def main():
     d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
     while (diff > .01) | (counter_update < 5):
 
-        # calculate log odss calibration for logits
+        # calculate log odds calibration for logits
         d_o = np.mean(solo_scores)
         c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
 
-        # update soloe scores
+        # update solo scores
         solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
 
         # update while conditions
@@ -431,6 +435,9 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
             solo_scores)
+    np.savetxt(os.path.join(args.out_dir, 'softmax_scores.csv'), 
+               solo_scores, delimiter=",")
+
 
     if args.expected_number_of_doublets is not None:
         k = len(solo_scores) - args.expected_number_of_doublets
@@ -450,9 +457,13 @@ def main():
     is_doublet[new_doublets_idx] = True
 
     np.save(os.path.join(args.out_dir, 'is_doublet.npy'), is_doublet[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'is_doublet.csv'), is_doublet[:num_cells], delimiter=",")
+    
     np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_doublet[num_cells:])
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'preds.csv'), order_pred[:num_cells], delimiter=",")
+
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
 
     smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet[:num_cells])
