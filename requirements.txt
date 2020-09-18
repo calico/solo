@@ -2,7 +2,7 @@ ConfigArgParse
 pandas
 seaborn
 tqdm
-scvi
+scvi==0.6.7
 leidenalg
 torch
-scanpy==0.6.7
+scanpy
