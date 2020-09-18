@@ -5,4 +5,4 @@ tqdm
 scvi
 leidenalg
 torch
-scanpy
+scanpy==0.6.7
