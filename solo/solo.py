@@ -41,6 +41,9 @@ def main():
                         help='json file to pass VAE parameters')
     parser.add_argument(dest='data_file',
                         help='h5ad file containing cell by genes counts')
+    parser.add_argument('--set-torch-seed', dest='torch_seed',
+                        default=None, type=int,
+                        help='Torch seed')
     parser.add_argument('-d', dest='doublet_depth',
                         default=2., type=float,
                         help='Depth multiplier for a doublet relative to the \
@@ -105,6 +108,8 @@ def main():
     if not os.path.isdir(args.out_dir):
         os.mkdir(args.out_dir)
 
+    if args.torch_seed is not None:
+        torch.manual_seed(args.torch_seed)
     ##################################################
     # data
 
