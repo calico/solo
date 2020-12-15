@@ -1,0 +1,5 @@
+Requirement already satisfied: pandas in /home/nicholas/miniconda3/envs/solo-sc/lib/python3.7/site-packages (0.24.2)
+Requirement already satisfied: pytz>=2011k in /home/nicholas/miniconda3/envs/solo-sc/lib/python3.7/site-packages (from pandas) (2019.1)
+Requirement already satisfied: python-dateutil>=2.5.0 in /home/nicholas/miniconda3/envs/solo-sc/lib/python3.7/site-packages (from pandas) (2.8.0)
+Requirement already satisfied: numpy>=1.12.0 in /home/nicholas/miniconda3/envs/solo-sc/lib/python3.7/site-packages (from pandas) (1.18.1)
+Requirement already satisfied: six>=1.5 in /home/nicholas/miniconda3/envs/solo-sc/lib/python3.7/site-packages (from python-dateutil>=2.5.0->pandas) (1.12.0)
