@@ -31,7 +31,6 @@ setup(
                       "natsort==6.0.0",
                       "networkx==2.2",
                       "numexpr==2.6.9",
-                      "pandas==0.24.2",
                       "patsy==0.5.1",
                       "pyparsing==2.4.0",
                       "python-dateutil==2.8.0",
