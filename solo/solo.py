@@ -110,6 +110,7 @@ def main():
 
     if args.torch_seed is not None:
         torch.manual_seed(args.torch_seed)
+        np.random.seed(args.torch_seed)
     ##################################################
     # data
 
