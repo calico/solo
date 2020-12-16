@@ -1,17 +1,17 @@
-# solo
+# solo -- Doublet detection via semi-supervised deep learning
 ### Why
-Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles. https://www.biorxiv.org/content/10.1101/841981v1
+Cells subjected to single cell RNA-seq have been through a lot, and they'd really just like to be alone now, please. If they cannot escape the cell social scene, you end up sequencing RNA from more than one cell to a barcode, creating a *doublet* when you expected single cell profiles. https://www.cell.com/cell-systems/fulltext/S2405-4712(20)30195-2
 
 **_solo_** is a neural network framework to classify doublets, so that you can remove them from your data and clean your single cell profile.
+
+We benchmarked **_solo_** against other doublet detection tools such as DoubletFinder and Scrublet, and found that it consistently outperformed them in terms of average precision. Additionally, Solo performed much better on a more complex tissue, mouse kidney. 
 
 ### Quick set up
 Run the following to clone and set up ve.
 `git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.6 && conda activate solo && pip install -e .`
 
 Or install via pip
-`conda create -n solo python=3.6 && conda activate solo && pip install -e solo-sc`
-
-Solo currently is only known to work with python 3.6.
+`conda create -n solo python=3.7 && conda activate solo && pip install solo-sc`
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
@@ -24,7 +24,8 @@ usage: solo [-h] [-d DOUBLET_DEPTH] [-g] [-o OUT_DIR] [-r DOUBLET_RATIO]
 
 positional arguments:
   model_json_file       json file to pass VAE parameters
-  data_file             h5ad file containing cell by genes counts
+  data_file             path to h5ad, loom or 10x directory containing cell by
+                        genes counts
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -52,6 +53,8 @@ optional arguments:
   -p                    Plot outputs (default: True)
 ```
 
+Warning: If you are going directly from cellranger 10x output you may want to manually inspect your data prior to running solo.
+
 model_json example:
 ```
 {
@@ -72,7 +75,9 @@ Outputs:
 * `classifier.pt` scVI weights for classifier
 * `latent.npy` latent embedding for each cell             
 * `preds.npy` doublet predictions
-* `softmax_scores.npy`	softmax of doublet scores
+* `softmax_scores.npy` updated softmax of doublet scores (see paper)
+* `no_update_softmax_scores.npy` raw softmax of doublet scores
+
 * `logit_scores.npy`	logit of doublet scores
 * `real_cells_dist.pdf` histogram of distribution of doublet scores
 *  `accuracy.pdf` accuracy plot test vs train
@@ -83,15 +88,6 @@ Outputs:
 *  `preds_sim.npy`	see above but for simulated doublets
 *  `is_doublet_sim.npy` see above but for simulated doublets
 
-For a dataset (2c from Kang et al. 2018) with `n_obs × n_vars = 14619 × 13649`
-we get the following amount of usage on a 4GB instance on a GTX 1080 Ti.
-```
-CPU Utilized: 00:08:19
-CPU Efficiency: 94.87% of 00:08:46 core-walltime
-Job Wall-clock time: 00:08:46
-Memory Utilized: 3.95 GB
-Memory Efficiency: 98.86% of 4.00 GB
-```
 
 ### How to demultiplex cell hashing data using HashSolo CLI
 

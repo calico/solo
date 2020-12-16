@@ -12,7 +12,7 @@ from collections import defaultdict
 
 import scvi
 from scvi.dataset import AnnDatasetFromAnnData, LoomDataset, \
-    GeneExpressionDataset
+    GeneExpressionDataset, Dataset10X
 from scvi.models import Classifier, VAE
 from scvi.inference import UnsupervisedTrainer, ClassifierTrainer
 import torch
@@ -39,11 +39,11 @@ def main():
     parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(dest='model_json_file',
                         help='json file to pass VAE parameters')
-    parser.add_argument(dest='data_file',
-                        help='h5ad file containing cell by genes counts')
     parser.add_argument('--set-torch-seed', dest='torch_seed',
                         default=None, type=int,
                         help='Torch seed')
+    parser.add_argument(dest='data_path',
+                        help='path to h5ad, loom or 10x directory containing cell by genes counts')
     parser.add_argument('-d', dest='doublet_depth',
                         default=2., type=float,
                         help='Depth multiplier for a doublet relative to the \
@@ -100,7 +100,7 @@ def main():
         scvi._settings.set_verbosity(10)
 
     model_json_file = args.model_json_file
-    data_file = args.data_file
+    data_path = args.data_path
     if args.gpu and not torch.cuda.is_available():
         args.gpu = torch.cuda.is_available()
         print('Cuda is not available, switching to cpu running!')
@@ -115,17 +115,29 @@ def main():
     # data
 
     # read loom/anndata
-    data_ext = os.path.splitext(data_file)[-1]
+    data_ext = os.path.splitext(data_path)[-1]
     if data_ext == '.loom':
-        scvi_data = LoomDataset(data_file)
+        scvi_data = LoomDataset(data_path)
     elif data_ext == '.h5ad':
-        adata = anndata.read(data_file)
+        adata = anndata.read(data_path)
         if issparse(adata.X):
             adata.X = adata.X.todense()
         scvi_data = AnnDatasetFromAnnData(adata)
+    elif os.path.isdir(data_path):
+        scvi_data = Dataset10X(save_path=data_path,
+                               measurement_names_column=1,
+                               dense=True)
+        cell_umi_depth = scvi_data.X.sum(axis=1)
+        fifth, ninetyfifth = np.percentile(cell_umi_depth, [5, 95])
+        min_cell_umi_depth = np.min(cell_umi_depth)
+        max_cell_umi_depth = np.max(cell_umi_depth)
+        if fifth * 10 < ninetyfifth:
+            print("""WARNING YOUR DATA HAS A WIDE RANGE OF CELL DEPTHS.
+            PLEASE MANUALLY REVIEW YOUR DATA""")
+        print(f"Min cell depth: {min_cell_umi_depth}, Max cell depth: {max_cell_umi_depth}")
     else:
-        msg = f'{data_ext} is not a recognized format.\n'
-        msg += 'must be one of {h5ad, loom}'
+        msg = f'{data_path} is not a recognized format.\n'
+        msg += 'must be one of {h5ad, loom, 10x directory}'
         raise TypeError(msg)
 
     num_cells, num_genes = scvi_data.X.shape
@@ -171,9 +183,15 @@ def main():
         'ignore_batch', False) else scvi_data.n_batches
 
     # training parameters
+    batch_size = params.get('batch_size', 128)
     valid_pct = params.get('valid_pct', 0.1)
     learning_rate = params.get('learning_rate', 1e-3)
     stopping_params = {'patience': params.get('patience', 10), 'threshold': 0}
+
+    # protect against single example batch
+    while num_cells % batch_size == 1:
+        batch_size = int(np.round(1.25*batch_size))
+        print('Increasing batch_size to %d to avoid single example batch.' % batch_size)
 
     ##################################################
     # VAE
@@ -199,13 +217,14 @@ def main():
                                 frequency=2,
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=args.gpu,
-                                early_stopping_kwargs=stopping_params)
+                                early_stopping_kwargs=stopping_params,
+                                batch_size=batch_size)
 
         full_posterior = utrainer.create_posterior(
             utrainer.model,
             singlet_scvi_data,
             indices=np.arange(len(singlet_scvi_data)))
-        latent, _, _ = full_posterior.sequential().get_latent()
+        latent, _, _ = full_posterior.sequential(batch_size).get_latent()
         np.save(os.path.join(args.out_dir, 'latent.npy'),
                 latent.astype('float32'))
 
@@ -220,7 +239,8 @@ def main():
                                 frequency=2,
                                 metrics_to_monitor=['reconstruction_error'],
                                 use_cuda=args.gpu,
-                                early_stopping_kwargs=stopping_params)
+                                early_stopping_kwargs=stopping_params,
+                                batch_size=batch_size)
         utrainer.history['reconstruction_error_test_set'].append(0)
         # initial epoch
         utrainer.train(n_epochs=2000, lr=learning_rate)
@@ -237,7 +257,7 @@ def main():
             utrainer.model,
             singlet_scvi_data,
             indices=np.arange(len(singlet_scvi_data)))
-        latent, _, _ = full_posterior.sequential().get_latent()
+        latent, _, _ = full_posterior.sequential(batch_size).get_latent()
         np.save(os.path.join(args.out_dir, 'latent.npy'),
                 latent.astype('float32'))
 
@@ -309,7 +329,8 @@ def main():
                                  frequency=2, metrics_to_monitor=['accuracy'],
                                  use_cuda=args.gpu,
                                  sampling_model=vae, sampling_zl=True,
-                                 early_stopping_kwargs=stopping_params)
+                                 early_stopping_kwargs=stopping_params,
+                                 batch_size=batch_size)
 
     # initial
     strainer.train(n_epochs=1000, lr=learning_rate)
@@ -337,7 +358,8 @@ def main():
                                         metrics_to_monitor=['accuracy'],
                                         use_cuda=args.gpu,
                                         sampling_model=vae, sampling_zl=True,
-                                        early_stopping_kwargs=stopping_params)
+                                        early_stopping_kwargs=stopping_params,
+                                        batch_size=batch_size)
 
     # models evaluation mode
     vae.eval()
@@ -381,17 +403,49 @@ def main():
     order_y, order_score = strainer.compute_predictions(soft=True)
     _, order_pred = strainer.compute_predictions()
     doublet_score = order_score[:, 1]
-    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'), doublet_score[:num_cells])
-    np.save(os.path.join(args.out_dir, 'softmax_scores_sim.npy'), doublet_score[num_cells:])
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores.npy'), doublet_score[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'no_updates_softmax_scores.csv'), doublet_score[:num_cells], delimiter=",")
+
+    np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
     logit_y, logit_score = logits_strainer.compute_predictions(soft=True)
     logit_doublet_score = logit_score[:, 1]
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'logit_scores.csv'), logit_doublet_score[:num_cells], delimiter=",")
+
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
 
+
+    # update threshold as a function of Solo's estimate of the number of
+    # doublets
+    # essentially a log odds update
+    # TODO put in a function
+    diff = np.inf
+    counter_update = 0
+    solo_scores = doublet_score[:num_cells]
+    logit_scores = logit_doublet_score[:num_cells]
+    d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
+    while (diff > .01) | (counter_update < 5):
+
+        # calculate log odds calibration for logits
+        d_o = np.mean(solo_scores)
+        c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
+
+        # update solo scores
+        solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
+
+        # update while conditions
+        diff = np.abs(d_o - np.mean(solo_scores))
+        counter_update += 1
+
+    np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
+            solo_scores)
+    np.savetxt(os.path.join(args.out_dir, 'softmax_scores.csv'), 
+               solo_scores, delimiter=",")
+
+
     if args.expected_number_of_doublets is not None:
-        solo_scores = doublet_score[:num_cells]
         k = len(solo_scores) - args.expected_number_of_doublets
         if args.expected_number_of_doublets / len(solo_scores) > .5:
             print('''Make sure you actually expect more than half your cells
@@ -400,9 +454,8 @@ def main():
         assert k > 0
         idx = np.argpartition(solo_scores, k)
         threshold = np.max(solo_scores[idx[:k]])
-        is_solo_doublet = doublet_score > threshold
+        is_solo_doublet = solo_scores > threshold
     else:
-
         # update threshold as a function of Solo's estimate of the number of
         # doublets
         # essentially a log odds update
@@ -428,14 +481,19 @@ def main():
                 doublet_score[:num_cells])
         is_solo_doublet = np.repeat(False, num_cells)
 
+
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
     is_doublet[new_doublets_idx] = True
 
     np.save(os.path.join(args.out_dir, 'is_doublet.npy'), is_doublet[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'is_doublet.csv'), is_doublet[:num_cells], delimiter=",")
+    
     np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_doublet[num_cells:])
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'preds.csv'), order_pred[:num_cells], delimiter=",")
+
     np.save(os.path.join(args.out_dir, 'preds_sim.npy'), order_pred[num_cells:])
 
     smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet[:num_cells])

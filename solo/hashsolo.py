@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from sklearn.metrics import calinski_harabaz_score
+from scipy.sparse import issparse
+from sklearn.metrics import calinski_harabasz_score
 
 '''
 HashSolo script provides a probabilistic cell hashing demultiplexing method
@@ -222,8 +223,7 @@ def _get_clusters(clustering_data: anndata.AnnData,
 
     for resolution in resolutions:
         sc.tl.leiden(clustering_data, resolution=resolution)
-
-        ch_score = calinski_harabaz_score(clustering_data.X, clustering_data.obs['leiden'])
+        ch_score = calinski_harabasz_score(clustering_data.X, clustering_data.obs['leiden'])
 
         if ch_score > best_ch_score:
             clustering_data.obs['best_leiden'] = clustering_data.obs['leiden'].values
@@ -268,6 +268,15 @@ def hashsolo(cell_hashing_adata: anndata.AnnData,
         if inplace is False returns AnnData with demultiplexing results
         in .obs attribute otherwise does is in place
     '''
+    if issparse(cell_hashing_adata.X):
+        cell_hashing_adata.X = np.array(cell_hashing_adata.X.todense())
+    
+    if clustering_data is not None:
+        print('This may take awhile we are running clustering at {} different resolutions'.format(len(resolutions)))
+        if not all(clustering_data.obs_names == cell_hashing_adata.obs_names):
+            raise ValueError(
+                'clustering_data and cell hashing cell_hashing_adata must have same index')
+        cell_hashing_adata.obs['best_leiden'] = _get_clusters(clustering_data, resolutions)
 
     if clustering_data is not None:
         print('This may take awhile we are running clustering at {} different resolutions'.format(len(resolutions)))

@@ -1,4 +1,6 @@
 ._*.py
+solo_sc.egg-info/
+dist/
 solo.egg-info*
 solo_sc.egg-info/
 dist/

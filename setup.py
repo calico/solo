@@ -13,7 +13,7 @@ except ImportError:  # Deps not yet installed
 
 setup(
     name='solo-sc',
-    version='0.2',
+    version='0.6',
     description='Neural network classifiers for doublets',
     long_description=Path('README.md').read_text('utf-8'),
     long_description_content_type="text/markdown",
@@ -23,32 +23,10 @@ setup(
     author_email=__email__,
     license='Apache',
     python_requires='>=3.6',
-    install_requires=["ConfigArgParse==0.14.0",
-                      "cycler==0.10.0",
-                      "decorator==4.4.0",
-                      "joblib==0.13.2",
-                      "mock==3.0.5",
-                      "natsort==6.0.0",
-                      "networkx==2.2",
-                      "numexpr==2.6.9",
-                      "patsy==0.5.1",
-                      "pyparsing==2.4.0",
-                      "python-dateutil==2.8.0",
-                      "pytz==2019.1",
-                      "seaborn==0.9.0",
-                      "six==1.12.0",
-                      "tables==3.5.1",
-                      "tqdm==4.32.1",
-                      "numba==0.45.0",
-                      "numpy>=1.16.4",
-                      "scanpy==1.4.5.1",
-                      "scvi==0.6.0",
-                      "dataclasses==0.6",
-                      "leidenalg==0.7.0",
-                      "pytest==5.2.1",
-                      "prompt-toolkit==2.0.9",
-                      "torch==1.0.1"
-                      ],
+    install_requires=[
+        l.strip() for l in
+        Path('requirements.txt').read_text('utf-8').splitlines()
+        ],
     packages=find_packages(),
     entry_points=dict(
         console_scripts=['solo=solo.solo:main',
