@@ -426,6 +426,7 @@ def main():
 
         np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
                 doublet_score[:num_cells])
+        is_solo_doublet = np.repeat(False, num_cells)
 
     is_doublet = known_doublets
     new_doublets_idx = np.where(~(is_doublet) & is_solo_doublet[:num_cells])[0]
