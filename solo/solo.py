@@ -2,7 +2,6 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
 import os
-import shutil
 import anndata
 
 import numpy as np
@@ -41,6 +40,9 @@ def main():
                         help='json file to pass VAE parameters')
     parser.add_argument(dest='data_path',
                         help='path to h5ad, loom or 10x directory containing cell by genes counts')
+    parser.add_argument('--set-reproducible-seed', dest='reproducible_seed',
+                        default=None, type=int,
+                        help='Reproducible seed, give an int to set seed')
     parser.add_argument('-d', dest='doublet_depth',
                         default=2., type=float,
                         help='Depth multiplier for a doublet relative to the \
@@ -105,6 +107,9 @@ def main():
     if not os.path.isdir(args.out_dir):
         os.mkdir(args.out_dir)
 
+    if args.reproducible_seed is not None:
+        torch.manual_seed(args.reproducible_seed)
+        np.random.seed(args.reproducible_seed)
     ##################################################
     # data
 
@@ -435,7 +440,7 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
             solo_scores)
-    np.savetxt(os.path.join(args.out_dir, 'softmax_scores.csv'), 
+    np.savetxt(os.path.join(args.out_dir, 'softmax_scores.csv'),
                solo_scores, delimiter=",")
 
 
@@ -458,7 +463,7 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'is_doublet.npy'), is_doublet[:num_cells])
     np.savetxt(os.path.join(args.out_dir, 'is_doublet.csv'), is_doublet[:num_cells], delimiter=",")
-    
+
     np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_doublet[num_cells:])
 
     np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
