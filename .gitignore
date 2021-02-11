@@ -6,4 +6,5 @@ solo/__pycache_*
 .ipynb_checkpoints
 */.ipynb_checkpoints
 slurm-*
-testdata/results
+testdata/results*
+logs/
