@@ -87,7 +87,6 @@ def main():
     else:
         scvi.settings.seed = np.random.randint(10000)
 
-    
     ##################################################
     # data
 
@@ -155,10 +154,10 @@ def main():
                'lr_threshold': 0,
                'lr_min': 1e-7,
                'lr_scheduler_metric': 'reconstruction_loss_validation'}
-        
+
         vae.train(max_epochs=2000,
-                    train_size=.9, 
-                    check_val_every_n_epoch=1, 
+                    validation_size=valid_pct,
+                    check_val_every_n_epoch=1,
                     plan_kwargs=plan_kwargs,
                     callbacks=scvi_callbacks
                     )

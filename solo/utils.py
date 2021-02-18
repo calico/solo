@@ -4,11 +4,13 @@ from scipy.stats import multinomial
 from sklearn.neighbors import NearestNeighbors
 
 
-def knn_smooth_pred_class(X: np.ndarray,
-                          pred_class: np.ndarray,
-                          grouping: np.ndarray = None,
-                          k: int = 15,) -> np.ndarray:
-    '''
+def knn_smooth_pred_class(
+    X: np.ndarray,
+    pred_class: np.ndarray,
+    grouping: np.ndarray = None,
+    k: int = 15,
+) -> np.ndarray:
+    """
     Smooths class predictions by taking the modal class from each cell's
     nearest neighbors.
     Parameters
@@ -39,7 +41,7 @@ def knn_smooth_pred_class(X: np.ndarray,
     By using a simple kNN smoothing heuristic, we can leverage neighborhood
     information to improve classification performance, smoothing out cells
     that have an outlier prediction relative to their local neighborhood.
-    '''
+    """
     if grouping is None:
         # do not use a grouping to restrict local neighborhood
         # associations, create a universal pseudogroup `0`.
@@ -48,7 +50,7 @@ def knn_smooth_pred_class(X: np.ndarray,
     smooth_pred_class = np.zeros_like(pred_class)
     for group in np.unique(grouping):
         # identify only cells in the relevant group
-        group_idx = np.where(grouping == group)[0].astype('int')
+        group_idx = np.where(grouping == group)[0].astype("int")
         X_group = X[grouping == group, :]
         # if there are < k cells in the group, change `k` to the
         # group size
@@ -57,7 +59,9 @@ def knn_smooth_pred_class(X: np.ndarray,
         else:
             k_use = k
         # compute a nearest neighbor graph and identify kNN
-        nns = NearestNeighbors(n_neighbors=k_use,).fit(X_group)
+        nns = NearestNeighbors(
+            n_neighbors=k_use,
+        ).fit(X_group)
         dist, idx = nns.kneighbors(X_group)
 
         # for each cell in the group, assign a class as
@@ -68,6 +72,3 @@ def knn_smooth_pred_class(X: np.ndarray,
             maj_class = uniq_classes[int(np.argmax(counts))]
             smooth_pred_class[group_idx[i]] = maj_class
     return smooth_pred_class
-
-
-
