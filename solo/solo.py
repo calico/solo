@@ -1,24 +1,22 @@
 #!/usr/bin/env python
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
 import os
+import umap
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import numpy as np
-from sklearn.metrics import roc_auc_score, accuracy_score, \
-    average_precision_score
+from sklearn.metrics import *
 from scipy.special import softmax
-import torch
 
+import torch
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
+import scvi
 from scvi.data import read_h5ad, read_loom, setup_anndata
 from scvi.model import SCVI
 from scvi.external import SOLO
 
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-import umap
-
-
 from .utils import knn_smooth_pred_class
-
 
 '''
 solo.py
@@ -38,7 +36,7 @@ def main():
     parser.add_argument(dest='model_json_file',
                         help='json file to pass VAE parameters')
     parser.add_argument(dest='data_path',
-                        help='path to h5ad, loom or 10x directory containing cell by genes counts')
+                        help='path to h5ad or loom cell by genes counts')
     parser.add_argument('--set-reproducible-seed', dest='reproducible_seed',
                         default=None, type=int,
                         help='Reproducible seed, give an int to set seed')
@@ -67,31 +65,12 @@ def main():
                         should at least have a vae.pt a pickled object of \
                         vae weights and a latent.npy an np.ndarray of the \
                         latents of your cells.')
-    parser.add_argument('-k', dest='known_doublets',
-                        help='Experimentally defined doublets tsv file. \
-                        Should be a single column of True/False. True \
-                        indicates the cell is a doublet. No header.',
-                        type=str)
-    parser.add_argument('-t', dest='doublet_type', help='Please enter \
-                        multinomial, average, or sum',
-                        default='multinomial',
-                        choices=['multinomial', 'average', 'sum'])
     parser.add_argument('-e', dest='expected_number_of_doublets',
                         help='Experimentally expected number of doublets',
                         type=int, default=None)
     parser.add_argument('-p', dest='plot',
                         default=False, action='store_true',
                         help='Plot outputs for solo')
-    parser.add_argument('-l', dest='normal_logging',
-                        default=False, action='store_true',
-                        help='Logging level set to normal (aka not debug)')
-    parser.add_argument('--random_size', dest='randomize_doublet_size',
-                        default=False,
-                        action='store_true',
-                        help='Sample depth multipliers from Unif(1, \
-                        DoubletDepth) \
-                        to provide a diversity of possible doublet depths.'
-                        )
     args = parser.parse_args()
 
     model_json_file = args.model_json_file
@@ -104,8 +83,11 @@ def main():
         os.mkdir(args.out_dir)
 
     if args.reproducible_seed is not None:
-        torch.manual_seed(args.reproducible_seed)
-        np.random.seed(args.reproducible_seed)
+        scvi.settings.seed = args.reproducible_seed
+    else:
+        scvi.settings.seed = np.random.randint(10000)
+
+    
     ##################################################
     # data
 
@@ -135,27 +117,26 @@ def main():
                 'ignore_batch']:
         if par in params:
             vae_params[par] = params[par]
-    vae_params['n_batch'] = 0 if params.get(
-        'ignore_batch', False) else scvi_data.n_batches
 
     # training parameters
+    batch_key = params.get('batch_key', None)
     batch_size = params.get('batch_size', 128)
     valid_pct = params.get('valid_pct', 0.1)
     learning_rate = params.get('learning_rate', 1e-3)
-    stopping_params = {'patience': params.get('patience', 20), 'min_delta': 0}
+    stopping_params = {'patience': params.get('patience', 100), 'min_delta': 0}
 
     # protect against single example batch
     while num_cells % batch_size == 1:
         batch_size = int(np.round(1.25*batch_size))
         print('Increasing batch_size to %d to avoid single example batch.' % batch_size)
 
+    scvi.settings.batch_size = batch_size
     ##################################################
     # SCVI
-    setup_anndata(scvi_data)
+    setup_anndata(scvi_data, batch_key=batch_key)
     vae = SCVI(scvi_data,
                gene_likelihood='nb',
                log_variational=True,
-               batch_size=batch_size,
                **vae_params)
 
     if args.seed:
@@ -167,11 +148,20 @@ def main():
                 mode='min',
                 **stopping_params
                 )]
-        vae.train(max_epochs=500,
-                  validation_size=valid_pct,
-                  check_val_every_n_epoch=1,
-                  callbacks=scvi_callbacks
-                  )
+        plan_kwargs = {'reduce_lr_on_plateau': True,
+               'lr_factor': .1,
+               'lr': 1e-2,
+               'lr_patience': 20,
+               'lr_threshold': 0,
+               'lr_min': 1e-7,
+               'lr_scheduler_metric': 'reconstruction_loss_validation'}
+        
+        vae.train(max_epochs=2000,
+                    train_size=.9, 
+                    check_val_every_n_epoch=1, 
+                    plan_kwargs=plan_kwargs,
+                    callbacks=scvi_callbacks
+                    )
         # save VAE
         vae.save(os.path.join(args.out_dir, 'vae.pt'))
 
@@ -186,17 +176,19 @@ def main():
     # model
     # todo add doublet ratio
     solo = SOLO.from_scvi_model(vae)
-    solo.train(500,
+    solo.train(2000,
                lr=learning_rate,
                train_size=.8,
                validation_size=.1,
                check_val_every_n_epoch=1,
-               early_stopping_patience=20)
-    if learning_rate > 1e-4:
-        solo.train(200, lr=1e-4, train_size=.8, validation_size=.1,
-                   check_val_every_n_epoch=1,
-                   early_stopping_patience=20)
-
+               early_stopping_patience=30)
+    solo.train(2000,
+               lr=learning_rate*.1,
+               train_size=.8,
+               validation_size=.1,
+               check_val_every_n_epoch=1,
+               early_stopping_patience=30,
+               callbacks=[])
     solo.save(os.path.join(args.out_dir, 'classifier.pt'))
 
     logit_predictions = solo.predict()
@@ -241,16 +233,16 @@ def main():
     np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
-    logit_doublet_score = logit_predictions[:, 1]
+    logit_doublet_score = logit_predictions[:, 0]
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
     np.savetxt(os.path.join(args.out_dir, 'logit_scores.csv'), logit_doublet_score[:num_cells], delimiter=",")
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
-
 
     # update threshold as a function of Solo's estimate of the number of
     # doublets
     # essentially a log odds update
     # TODO put in a function
+    # currently overshrinking softmaxes
     diff = np.inf
     counter_update = 0
     solo_scores = doublet_score[:num_cells]
@@ -292,16 +284,16 @@ def main():
 
     np.save(os.path.join(args.out_dir, 'is_doublet_sim.npy'), is_solo_doublet[num_cells:])
 
-    np.save(os.path.join(args.out_dir, 'preds.npy'), order_pred[:num_cells])
-    np.savetxt(os.path.join(args.out_dir, 'preds.csv'), order_pred[:num_cells], delimiter=",")
+    np.save(os.path.join(args.out_dir, 'preds.npy'), is_doublet_pred[:num_cells])
+    np.savetxt(os.path.join(args.out_dir, 'preds.csv'), is_doublet_pred[:num_cells], delimiter=",")
 
-    smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet[:num_cells])
+    smoothed_preds = knn_smooth_pred_class(X=latent, pred_class=is_doublet_pred[:num_cells])
     np.save(os.path.join(args.out_dir, 'smoothed_preds.npy'), smoothed_preds)
 
     if args.anndata_output and data_ext == '.h5ad':
         scvi_data.obs['is_doublet'] = is_solo_doublet[:num_cells]
         scvi_data.obs['logit_scores'] = logit_doublet_score[:num_cells]
-        scvi_data.obs['softmax_scores'] = doublet_score[:num_cells]
+        scvi_data.obs['softmax_scores'] = solo_scores[:num_cells]
         scvi_data.write(os.path.join(args.out_dir, "soloed.h5ad"))
 
     if args.plot:
@@ -310,9 +302,9 @@ def main():
         import matplotlib.pyplot as plt
         import seaborn as sns
 
-        train_solo_scores = solo_scores[solo.train_indices]
-        validation_solo_scores = solo_scores[solo.validation_indices]
-        test_solo_scores = solo_scores[solo.test_indices]
+        train_solo_scores = doublet_score[solo.train_indices]
+        validation_solo_scores = doublet_score[solo.validation_indices]
+        test_solo_scores = doublet_score[solo.test_indices]
 
         train_fpr, train_tpr, _ = roc_curve(training_is_doublet_known, train_solo_scores)
         val_fpr, val_tpr, _ = roc_curve(validation_is_doublet_known, validation_solo_scores)
@@ -338,7 +330,7 @@ def main():
         plt.plot(val_precision, val_recall, label='Validation')
         plt.plot(test_precision, test_recall, label='Test')
         plt.gca().set_xlabel('Recall')
-        plt.gca().set_ylabel('Precision')
+        plt.gca().set_ylabel('pytPrecision')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'precision_recall.pdf'))
         plt.close()
