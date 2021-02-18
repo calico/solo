@@ -325,9 +325,9 @@ def main():
         test_precision, test_recall, _ = precision_recall_curve(test_is_doublet_known, test_solo_scores)
         # plot accuracy
         plt.figure()
-        plt.plot(train_precision, train_recall, label='Train')
-        plt.plot(val_precision, val_recall, label='Validation')
-        plt.plot(test_precision, test_recall, label='Test')
+        plt.plot(train_recall, train_precision, label='Train')
+        plt.plot(val_recall, val_precision, label='Validation')
+        plt.plot(test_recall, test_precision, label='Test')
         plt.gca().set_xlabel('Recall')
         plt.gca().set_ylabel('pytPrecision')
         plt.legend()
