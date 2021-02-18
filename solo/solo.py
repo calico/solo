@@ -335,18 +335,18 @@ def main():
         plt.close()
 
         # plot distributions
-        obs_indices = solo_scores.test_indices[solo_scores.test_indices < num_cells]
-        sim_indices = solo_scores.test_indices[solo_scores.test_indices > num_cells]
+        obs_indices = solo.test_indices[solo.test_indices < num_cells]
+        sim_indices = solo.test_indices[solo.test_indices > num_cells]
 
         plt.figure()
-        sns.distplot(solo_scores[sim_indices], label='Simulated')
-        sns.distplot(solo_scores[obs_indices], label='Observed')
+        sns.distplot(doublet_score[sim_indices], label='Simulated')
+        sns.distplot(doublet_score[obs_indices], label='Observed')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'sim_vs_obs_dist.pdf'))
         plt.close()
 
         plt.figure()
-        sns.distplot(solo_scores[:num_cells], label='Observed')
+        sns.distplot(solo_scores[:num_cells], label='Observed (transformed)')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'real_cells_dist.pdf'))
         plt.close()
