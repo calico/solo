@@ -7,6 +7,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from sklearn.metrics import *
 from scipy.special import softmax
+from scanpy.reading import read_10x_mtx
 
 import torch
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -36,7 +37,7 @@ def main():
     parser.add_argument(dest='model_json_file',
                         help='json file to pass VAE parameters')
     parser.add_argument(dest='data_path',
-                        help='path to h5ad or loom cell by genes counts')
+                        help='path to h5ad, loom, or 10x mtx dir cell by genes counts')
     parser.add_argument('--set-reproducible-seed', dest='reproducible_seed',
                         default=None, type=int,
                         help='Reproducible seed, give an int to set seed')
@@ -96,9 +97,19 @@ def main():
         scvi_data = read_loom(data_path)
     elif data_ext == '.h5ad':
         scvi_data = read_h5ad(data_path)
+    elif os.path.isdir(data_path):
+        scvi_data = read_10x_mtx(path=data_path)
+        cell_umi_depth = scvi_data.X.sum(axis=1)
+        fifth, ninetyfifth = np.percentile(cell_umi_depth, [5, 95])
+        min_cell_umi_depth = np.min(cell_umi_depth)
+        max_cell_umi_depth = np.max(cell_umi_depth)
+        if fifth * 10 < ninetyfifth:
+            print("""WARNING YOUR DATA HAS A WIDE RANGE OF CELL DEPTHS.
+            PLEASE MANUALLY REVIEW YOUR DATA""")
+        print(f"Min cell depth: {min_cell_umi_depth}, Max cell depth: {max_cell_umi_depth}")
     else:
         msg = f'{data_path} is not a recognized format.\n'
-        msg += 'must be one of {h5ad, loom}'
+        msg += 'must be one of {h5ad, loom, 10x mtx dir}'
         raise TypeError(msg)
 
     num_cells, num_genes = scvi_data.X.shape
@@ -139,7 +150,7 @@ def main():
                **vae_params)
 
     if args.seed:
-        vae.load(os.path.join(args.seed, 'vae.pt'), use_gpu=args.gpu)
+        vae.load(os.path.join(args.seed, 'vae'), use_gpu=args.gpu)
     else:
         scvi_callbacks = []
         scvi_callbacks += [EarlyStopping(
@@ -177,18 +188,16 @@ def main():
     solo = SOLO.from_scvi_model(vae)
     solo.train(2000,
                lr=learning_rate,
-               train_size=.8,
-               validation_size=.1,
+               train_size=.9,
                check_val_every_n_epoch=1,
                early_stopping_patience=30)
     solo.train(2000,
                lr=learning_rate*.1,
-               train_size=.8,
-               validation_size=.1,
+               train_size=.9,
                check_val_every_n_epoch=1,
                early_stopping_patience=30,
                callbacks=[])
-    solo.save(os.path.join(args.out_dir, 'classifier.pt'))
+    solo.save(os.path.join(args.out_dir, 'classifier'))
 
     logit_predictions = solo.predict()
 
@@ -199,8 +208,6 @@ def main():
     validation_is_doublet_pred = is_doublet_pred[solo.validation_indices]
     training_is_doublet_known = is_doublet_known[solo.train_indices]
     training_is_doublet_pred = is_doublet_pred[solo.train_indices]
-    test_is_doublet_known = is_doublet_known[solo.test_indices]
-    test_is_doublet_pred = is_doublet_pred[solo.test_indices]
 
     valid_as = accuracy_score(validation_is_doublet_known, validation_is_doublet_pred)
     valid_roc = roc_auc_score(validation_is_doublet_known, validation_is_doublet_pred)
@@ -210,18 +217,11 @@ def main():
     train_roc = roc_auc_score(training_is_doublet_known, training_is_doublet_pred)
     train_ap = average_precision_score(training_is_doublet_known, training_is_doublet_pred)
 
-    test_as = accuracy_score(test_is_doublet_known, test_is_doublet_pred)
-    test_roc = roc_auc_score(test_is_doublet_known, test_is_doublet_pred)
-    test_ap = average_precision_score(test_is_doublet_known, test_is_doublet_pred)
-
     print(f'Training results')
     print(f'AUROC: {train_roc}, Accuracy: {train_as}, Average precision: {train_ap}')
 
     print(f'Validation results')
     print(f'AUROC: {valid_roc}, Accuracy: {valid_as}, Average precision: {valid_ap}')
-
-    print(f'Test results')
-    print(f'AUROC: {test_roc}, Accuracy: {test_as}, Average precision: {test_ap}')
 
     # write predictions
     # softmax predictions
@@ -303,17 +303,14 @@ def main():
 
         train_solo_scores = doublet_score[solo.train_indices]
         validation_solo_scores = doublet_score[solo.validation_indices]
-        test_solo_scores = doublet_score[solo.test_indices]
 
         train_fpr, train_tpr, _ = roc_curve(training_is_doublet_known, train_solo_scores)
         val_fpr, val_tpr, _ = roc_curve(validation_is_doublet_known, validation_solo_scores)
-        test_fpr, test_tpr, _ = roc_curve(test_is_doublet_known, test_solo_scores)
 
         # plot ROC
         plt.figure()
         plt.plot(train_fpr, train_tpr, label='Train')
-        plt.plot(val_fpr, val_tpr, label='Test')
-        plt.plot(test_fpr, test_tpr, label='Test')
+        plt.plot(val_fpr, val_tpr, label='Validation')
         plt.gca().set_xlabel('False positive rate')
         plt.gca().set_ylabel('True positive rate')
         plt.legend()
@@ -322,12 +319,10 @@ def main():
 
         train_precision, train_recall, _ = precision_recall_curve(training_is_doublet_known, train_solo_scores)
         val_precision, val_recall, _ = precision_recall_curve(validation_is_doublet_known, validation_solo_scores)
-        test_precision, test_recall, _ = precision_recall_curve(test_is_doublet_known, test_solo_scores)
         # plot accuracy
         plt.figure()
         plt.plot(train_recall, train_precision, label='Train')
         plt.plot(val_recall, val_precision, label='Validation')
-        plt.plot(test_recall, test_precision, label='Test')
         plt.gca().set_xlabel('Recall')
         plt.gca().set_ylabel('pytPrecision')
         plt.legend()
@@ -335,8 +330,8 @@ def main():
         plt.close()
 
         # plot distributions
-        obs_indices = solo.test_indices[solo.test_indices < num_cells]
-        sim_indices = solo.test_indices[solo.test_indices > num_cells]
+        obs_indices = solo.validation_indices[solo.validation_indices < num_cells]
+        sim_indices = solo.validation_indices[solo.validation_indices > num_cells]
 
         plt.figure()
         sns.distplot(doublet_score[sim_indices], label='Simulated')
