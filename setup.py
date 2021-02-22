@@ -13,12 +13,12 @@ except ImportError:  # Deps not yet installed
 
 setup(
     name="solo-sc",
-    version="0.6",
+    version="1.0",
     description="Neural network classifiers for doublets",
     long_description=Path("README.md").read_text("utf-8"),
     long_description_content_type="text/markdown",
     url="http://github.com/calico/solo",
-    download_url="https://github.com/calico/solo/archive/0.1.tar.gz",
+    download_url="https://github.com/calico/solo/archive/1.0.tar.gz",
     author=__author__,
     author_email=__email__,
     license="Apache",
