@@ -173,7 +173,7 @@ def main():
                     callbacks=scvi_callbacks
                     )
         # save VAE
-        vae.save(os.path.join(args.out_dir, 'vae.pt'))
+        vae.save(os.path.join(args.out_dir, 'vae'))
 
     latent = vae.get_latent_representation()
     # save latent representation
