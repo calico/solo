@@ -7,7 +7,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from sklearn.metrics import *
 from scipy.special import softmax
-from scanpy.reading import read_10x_mtx
+from scanpy import read_10x_mtx
 
 import torch
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -334,8 +334,8 @@ def main():
         sim_indices = solo.validation_indices[solo.validation_indices > num_cells]
 
         plt.figure()
-        sns.distplot(doublet_score[sim_indices], label='Simulated')
-        sns.distplot(doublet_score[obs_indices], label='Observed')
+        sns.displot(doublet_score[sim_indices], label='Simulated')
+        sns.displot(doublet_score[obs_indices], label='Observed')
         plt.legend()
         plt.savefig(os.path.join(args.out_dir, 'sim_vs_obs_dist.pdf'))
         plt.close()
