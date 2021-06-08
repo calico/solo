@@ -55,7 +55,7 @@ def main():
     parser.add_argument('-o', dest='out_dir',
                         default='solo_out')
     parser.add_argument('-r', dest='doublet_ratio',
-                        default=2., type=float,
+                        default=2, type=int,
                         help='Ratio of doublets to true \
                         cells')
     parser.add_argument('-s', dest='seed',
@@ -72,6 +72,9 @@ def main():
     parser.add_argument('-p', dest='plot',
                         default=False, action='store_true',
                         help='Plot outputs for solo')
+    parser.add_argument('-recalibrate_scores', dest='recalibrate_scores',
+                    default=False, action='store_true',
+                    help='Recalibrate doublet scores')
     args = parser.parse_args()
 
     model_json_file = args.model_json_file
@@ -133,7 +136,7 @@ def main():
     batch_size = params.get('batch_size', 128)
     valid_pct = params.get('valid_pct', 0.1)
     learning_rate = params.get('learning_rate', 1e-3)
-    stopping_params = {'patience': params.get('patience', 100), 'min_delta': 0}
+    stopping_params = {'patience': params.get('patience', 40), 'min_delta': 0}
 
     # protect against single example batch
     while num_cells % batch_size == 1:
@@ -147,10 +150,11 @@ def main():
     vae = SCVI(scvi_data,
                gene_likelihood='nb',
                log_variational=True,
-               **vae_params)
+               **vae_params,
+               use_observed_lib_size=False)
 
     if args.seed:
-        vae.load(os.path.join(args.seed, 'vae'), use_gpu=args.gpu)
+        vae = vae.load(os.path.join(args.seed, 'vae'), use_gpu=args.gpu)
     else:
         scvi_callbacks = []
         scvi_callbacks += [EarlyStopping(
@@ -161,9 +165,9 @@ def main():
         plan_kwargs = {'reduce_lr_on_plateau': True,
                'lr_factor': .1,
                'lr': 1e-2,
-               'lr_patience': 20,
+               'lr_patience': 10,
                'lr_threshold': 0,
-               'lr_min': 1e-7,
+               'lr_min': 1e-5,
                'lr_scheduler_metric': 'reconstruction_loss_validation'}
 
         vae.train(max_epochs=2000,
@@ -185,7 +189,7 @@ def main():
 
     # model
     # todo add doublet ratio
-    solo = SOLO.from_scvi_model(vae)
+    solo = SOLO.from_scvi_model(vae, doublet_ratio=args.doublet_ratio)
     solo.train(2000,
                lr=learning_rate,
                train_size=.9,
@@ -199,10 +203,10 @@ def main():
                callbacks=[])
     solo.save(os.path.join(args.out_dir, 'classifier'))
 
-    logit_predictions = solo.predict()
+    logit_predictions = solo.predict(include_simulated_doublets=True)
 
     is_doublet_known = solo.adata.obs._solo_doub_sim == 'doublet'
-    is_doublet_pred = np.argmin(logit_predictions, axis=1)
+    is_doublet_pred = logit_predictions.idxmin(axis=1) == "singlet"
 
     validation_is_doublet_known = is_doublet_known[solo.validation_indices]
     validation_is_doublet_pred = is_doublet_pred[solo.validation_indices]
@@ -226,13 +230,14 @@ def main():
     # write predictions
     # softmax predictions
     softmax_predictions = softmax(logit_predictions, axis=1)
-    doublet_score = softmax_predictions[:, 0]
+    doublet_score = softmax_predictions.loc[:, 'doublet']
+
     np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores.npy'), doublet_score[:num_cells])
     np.savetxt(os.path.join(args.out_dir, 'no_updates_softmax_scores.csv'), doublet_score[:num_cells], delimiter=",")
     np.save(os.path.join(args.out_dir, 'no_updates_softmax_scores_sim.npy'), doublet_score[num_cells:])
 
     # logit predictions
-    logit_doublet_score = logit_predictions[:, 0]
+    logit_doublet_score = logit_predictions.loc[:, 'doublet']
     np.save(os.path.join(args.out_dir, 'logit_scores.npy'), logit_doublet_score[:num_cells])
     np.savetxt(os.path.join(args.out_dir, 'logit_scores.csv'), logit_doublet_score[:num_cells], delimiter=",")
     np.save(os.path.join(args.out_dir, 'logit_scores_sim.npy'), logit_doublet_score[num_cells:])
@@ -247,18 +252,19 @@ def main():
     solo_scores = doublet_score[:num_cells]
     logit_scores = logit_doublet_score[:num_cells]
     d_s = (args.doublet_ratio / (args.doublet_ratio + 1))
-    while (diff > .01) | (counter_update < 5):
+    if args.recalibrate_scores:
+        while (diff > .01) | (counter_update < 5):
 
-        # calculate log odds calibration for logits
-        d_o = np.mean(solo_scores)
-        c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
+            # calculate log odds calibration for logits
+            d_o = np.mean(solo_scores)
+            c = np.log(d_o/(1-d_o)) - np.log(d_s/(1-d_s))
 
-        # update solo scores
-        solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
+            # update solo scores
+            solo_scores = 1 / (1+np.exp(-(logit_scores + c)))
 
-        # update while conditions
-        diff = np.abs(d_o - np.mean(solo_scores))
-        counter_update += 1
+            # update while conditions
+            diff = np.abs(d_o - np.mean(solo_scores))
+            counter_update += 1
 
     np.save(os.path.join(args.out_dir, 'softmax_scores.npy'),
             solo_scores)
@@ -290,9 +296,9 @@ def main():
     np.save(os.path.join(args.out_dir, 'smoothed_preds.npy'), smoothed_preds)
 
     if args.anndata_output and data_ext == '.h5ad':
-        scvi_data.obs['is_doublet'] = is_solo_doublet[:num_cells]
-        scvi_data.obs['logit_scores'] = logit_doublet_score[:num_cells]
-        scvi_data.obs['softmax_scores'] = solo_scores[:num_cells]
+        scvi_data.obs['is_doublet'] = is_solo_doublet[:num_cells].values.astype(bool)
+        scvi_data.obs['logit_scores'] = logit_doublet_score[:num_cells].values.astype(float)
+        scvi_data.obs['softmax_scores'] = solo_scores[:num_cells].values.astype(float)
         scvi_data.write(os.path.join(args.out_dir, "soloed.h5ad"))
 
     if args.plot:
@@ -353,8 +359,6 @@ def main():
 
         ax.set_xlabel("UMAP 1")
         ax.set_ylabel("UMAP 2")
-        ax.set_xticks([], [])
-        ax.set_yticks([], [])
         fig.savefig(os.path.join(args.out_dir, 'umap_solo_scores.pdf'))
 
 ###############################################################################
