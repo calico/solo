@@ -167,7 +167,7 @@ def main():
                'lr': 1e-2,
                'lr_patience': 10,
                'lr_threshold': 0,
-               'lr_min': 1e-5,
+               'lr_min': 1e-4,
                'lr_scheduler_metric': 'reconstruction_loss_validation'}
 
         vae.train(max_epochs=2000,
