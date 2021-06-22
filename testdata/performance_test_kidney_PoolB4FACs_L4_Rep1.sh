@@ -13,5 +13,5 @@
 echo "My SLURM_ARRAY_TASK_ID: " $SLURM_ARRAY_TASK_ID
 echo 'kidney'
 source activate solo-sc
-solo -g -r 2 -d 2 -t sum -o results_kidney_"$SLURM_ARRAY_TASK_ID" ../solo_params_example.json gene_ad_filtered_PoolB4FACs_L4_Rep1.h5ad
+solo -p -a -g -r 2 --set-reproducible-seed "$SLURM_ARRAY_TASK_ID" -o results_kidney_"$SLURM_ARRAY_TASK_ID" ../solo_params_example.json gene_ad_filtered_PoolB4FACs_L4_Rep1.h5ad
             

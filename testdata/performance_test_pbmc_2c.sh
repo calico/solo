@@ -13,5 +13,5 @@
 echo "My SLURM_ARRAY_TASK_ID: " $SLURM_ARRAY_TASK_ID
 echo 'pbmc'
 source activate solo-sc
-solo -g -r 2 -d 2 -t sum -o results_pbmc_"$SLURM_ARRAY_TASK_ID" ../solo_params_example.json 2c.h5ad
+solo -p -a -g -r 2 --set-reproducible-seed "$SLURM_ARRAY_TASK_ID" -o results_pbmc_"$SLURM_ARRAY_TASK_ID" ../solo_params_example.json 2c.h5ad
             

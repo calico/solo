@@ -2,7 +2,7 @@ ConfigArgParse
 pandas
 seaborn
 tqdm
-scvi==0.6.7
+scvi-tools
 leidenalg
 torch
 scanpy
