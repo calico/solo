@@ -17,23 +17,28 @@ If you don't have conda follow the instructions here: https://docs.conda.io/proj
 
 ### How to solo
 ```
-usage: solo [-h] [-d DOUBLET_DEPTH] [-g] [-o OUT_DIR] [-r DOUBLET_RATIO]
-            [-s SEED] [-k KNOWN_DOUBLETS] [-t {multinomial,average,sum}]
-            [-e EXPECTED_NUMBER_OF_DOUBLETS] [-p]
-            model_json_file data_file
-
-positional arguments:
-  model_json_file       json file to pass VAE parameters
-  data_file             path to h5ad, loom or 10x directory containing cell by
-                        genes counts
+usage: solo [-h] -j MODEL_JSON_FILE -d DATA_PATH
+            [--set-reproducible-seed REPRODUCIBLE_SEED]
+            [--doublet-depth DOUBLET_DEPTH] [-g] [-a] [-o OUT_DIR]
+            [-r DOUBLET_RATIO] [-s SEED] [-e EXPECTED_NUMBER_OF_DOUBLETS] [-p]
+            [-recalibrate_scores] [--version]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -d DOUBLET_DEPTH      Depth multiplier for a doublet relative to the average
+  -j MODEL_JSON_FILE    json file to pass VAE parameters (default: None)
+  -d DATA_PATH          path to h5ad, loom, or 10x mtx dir cell by genes
+                        counts (default: None)
+  --set-reproducible-seed REPRODUCIBLE_SEED
+                        Reproducible seed, give an int to set seed (default:
+                        None)
+  --doublet-depth DOUBLET_DEPTH
+                        Depth multiplier for a doublet relative to the average
                         of its constituents (default: 2.0)
   -g                    Run on GPU (default: True)
+  -a                    output modified anndata object with solo scores Only
+                        works for anndata (default: False)
   -o OUT_DIR
-  -r DOUBLET_RATIO      Ratio of doublets to true cells (default: 2.0)
+  -r DOUBLET_RATIO      Ratio of doublets to true cells (default: 2)
   -s SEED               Path to previous solo output directory. Seed VAE
                         models with previously trained solo model. Directory
                         structure is assumed to be the same as solo output
@@ -41,16 +46,13 @@ optional arguments:
                         pickled object of vae weights and a latent.npy an
                         np.ndarray of the latents of your cells. (default:
                         None)
-  -k KNOWN_DOUBLETS     Experimentally defined doublets tsv file. Should be a
-                        single column of True/False. True indicates the cell
-                        is a doublet. No header. (default: None)
-  -t {multinomial,average,sum}
-                        Please enter multinomial, average, or sum (default:
-                        multinomial)
   -e EXPECTED_NUMBER_OF_DOUBLETS
                         Experimentally expected number of doublets (default:
                         None)
-  -p                    Plot outputs (default: True)
+  -p                    Plot outputs for solo (default: False)
+  -recalibrate_scores   Recalibrate doublet scores (not recommended anymore)
+                        (default: False)
+  --version             Get version of solo-sc (default: False)
 ```
 
 Warning: If you are going directly from cellranger 10x output you may want to manually inspect your data prior to running solo.
