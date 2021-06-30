@@ -26,7 +26,7 @@ setup(
     install_requires=[
         l.strip() for l in Path("requirements.txt").read_text("utf-8").splitlines()
     ],
-    packages=find_packages(),
+    packages=find_packages(exclude="testdata"),
     entry_points=dict(
         console_scripts=["solo=solo.solo:main", "hashsolo=solo.hashsolo:main"],
     ),
