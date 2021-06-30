@@ -36,11 +36,18 @@ Simulate doublets, train a VAE, and then a classifier on top.
 def main():
     usage = "solo"
     parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-j", dest="model_json_file", help="json file to pass VAE parameters",
-                       required='--version' not in sys.argv)
-    parser.add_argument("-d",
-        dest="data_path", help="path to h5ad, loom, or 10x mtx dir cell by genes counts",
-    required='--version' not in sys.argv)
+    parser.add_argument(
+        "-j",
+        dest="model_json_file",
+        help="json file to pass VAE parameters",
+        required="--version" not in sys.argv,
+    )
+    parser.add_argument(
+        "-d",
+        dest="data_path",
+        help="path to h5ad, loom, or 10x mtx dir cell by genes counts",
+        required="--version" not in sys.argv,
+    )
     parser.add_argument(
         "--set-reproducible-seed",
         dest="reproducible_seed",
