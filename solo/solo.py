@@ -2,7 +2,9 @@
 import json
 import os
 import umap
+import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import pkg_resources
 
 import numpy as np
 from sklearn.metrics import *
@@ -34,10 +36,11 @@ Simulate doublets, train a VAE, and then a classifier on top.
 def main():
     usage = "solo"
     parser = ArgumentParser(usage, formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(dest="model_json_file", help="json file to pass VAE parameters")
-    parser.add_argument(
-        dest="data_path", help="path to h5ad, loom, or 10x mtx dir cell by genes counts"
-    )
+    parser.add_argument("-j", dest="model_json_file", help="json file to pass VAE parameters",
+                       required='--version' not in sys.argv)
+    parser.add_argument("-d",
+        dest="data_path", help="path to h5ad, loom, or 10x mtx dir cell by genes counts",
+    required='--version' not in sys.argv)
     parser.add_argument(
         "--set-reproducible-seed",
         dest="reproducible_seed",
@@ -46,7 +49,7 @@ def main():
         help="Reproducible seed, give an int to set seed",
     )
     parser.add_argument(
-        "-d",
+        "--doublet-depth",
         dest="doublet_depth",
         default=2.0,
         type=float,
@@ -104,9 +107,23 @@ def main():
         dest="recalibrate_scores",
         default=False,
         action="store_true",
-        help="Recalibrate doublet scores",
+        help="Recalibrate doublet scores (not recommended anymore)",
+    )
+    parser.add_argument(
+        "--version",
+        dest="version",
+        default=False,
+        action="store_true",
+        help="Get version of solo-sc",
     )
     args = parser.parse_args()
+
+    if args.version:
+        version = pkg_resources.require("solo-sc")[0].version
+        print(f"Current version of solo-sc is {version}")
+        if args.model_json_file is None or args.data_path is None:
+            print("Json or data path not give exiting solo")
+            sys.exit()
 
     model_json_file = args.model_json_file
     data_path = args.data_path
@@ -170,7 +187,7 @@ def main():
     batch_size = params.get("batch_size", 128)
     valid_pct = params.get("valid_pct", 0.1)
     learning_rate = params.get("learning_rate", 1e-3)
-    stopping_params = {"patience": params.get("patience", 40), "min_delta": 0}
+    stopping_params = {"patience": params.get("patience", 8), "min_delta": 0}
 
     # protect against single example batch
     while num_cells % batch_size == 1:
@@ -211,7 +228,7 @@ def main():
         vae.train(
             max_epochs=2000,
             validation_size=valid_pct,
-            check_val_every_n_epoch=1,
+            check_val_every_n_epoch=5,
             plan_kwargs=plan_kwargs,
             callbacks=scvi_callbacks,
         )
@@ -232,8 +249,8 @@ def main():
         2000,
         lr=learning_rate,
         train_size=0.9,
-        check_val_every_n_epoch=1,
-        early_stopping_patience=30,
+        check_val_every_n_epoch=5,
+        early_stopping_patience=6,
     )
     solo.train(
         2000,
