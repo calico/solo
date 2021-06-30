@@ -73,11 +73,11 @@ model_json example:
 
 Outputs:
 * `is_doublet.npy`  np boolean array, true if a cell is a doublet, differs from `preds.npy` if `-e expected_number_of_doublets` parameter was used
-* `vae.pt` scVI weights for vae
-* `classifier.pt` scVI weights for classifier
+* `vae` scVI directory for vae
+* `classifier.pt` scVI directory for classifier
 * `latent.npy` latent embedding for each cell             
 * `preds.npy` doublet predictions
-* `softmax_scores.npy` updated softmax of doublet scores (see paper)
+* `softmax_scores.npy` updated softmax of doublet scores (see paper), same as `no_update_softmax_scores.npy` now
 * `no_update_softmax_scores.npy` raw softmax of doublet scores
 
 * `logit_scores.npy`	logit of doublet scores
