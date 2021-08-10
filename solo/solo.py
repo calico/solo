@@ -192,7 +192,7 @@ def main():
     # training parameters
     batch_key = params.get("batch_key", None)
     batch_size = params.get("batch_size", 128)
-    valid_pct = params.get("valid_pct", 0.1)
+    valid_pct = params.get("train_pct", 0.9)
     learning_rate = params.get("learning_rate", 1e-3)
     stopping_params = {"patience": params.get("patience", 8), "min_delta": 0}
 
@@ -234,7 +234,7 @@ def main():
 
         vae.train(
             max_epochs=2000,
-            validation_size=valid_pct,
+            train_size=train_pct,
             check_val_every_n_epoch=5,
             plan_kwargs=plan_kwargs,
             callbacks=scvi_callbacks,
