@@ -8,7 +8,7 @@ We benchmarked **_solo_** against other doublet detection tools such as DoubletF
 
 ### Quick set up
 Run the following to clone and set up ve.
-`git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.6 && conda activate solo && pip install -e .`
+`git clone git@github.com:calico/solo.git && cd solo && conda create -n solo python=3.7 && conda activate solo && pip install -e .`
 
 Or install via pip
 `conda create -n solo python=3.7 && conda activate solo && pip install solo-sc`
