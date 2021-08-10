@@ -192,7 +192,7 @@ def main():
     # training parameters
     batch_key = params.get("batch_key", None)
     batch_size = params.get("batch_size", 128)
-    valid_pct = params.get("train_pct", 0.9)
+    train_pct = params.get("train_pct", 0.9)
     learning_rate = params.get("learning_rate", 1e-3)
     stopping_params = {"patience": params.get("patience", 8), "min_delta": 0}
 
@@ -262,7 +262,7 @@ def main():
     solo.train(
         2000,
         lr=learning_rate * 0.1,
-        train_size=0.9,
+        train_size=train_pct,
         check_val_every_n_epoch=1,
         early_stopping_patience=30,
         callbacks=[],
