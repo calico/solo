@@ -2,7 +2,8 @@ ConfigArgParse
 pandas
 seaborn
 tqdm
-scvi-tools
+scvi-tools==0.11.0
+pytorch-lightning==1.2.3
 leidenalg
 torch
 scanpy
