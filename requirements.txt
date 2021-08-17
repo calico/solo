@@ -5,3 +5,4 @@ tqdm
 scvi-tools
 leidenalg
 scanpy
+pytorch-lightning==1.3.1
