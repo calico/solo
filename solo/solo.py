@@ -232,7 +232,6 @@ def main():
             "lr_min": 1e-4,
             "lr_scheduler_metric": "reconstruction_loss_validation",
         }
-# Hello, world - Georgia
         vae.train(
             max_epochs=2000,
             validation_size=valid_pct,
