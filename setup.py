@@ -3,7 +3,7 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 if sys.version_info < (3,):
-    sys.exit("solo requires Python >= 3.6")
+    sys.exit("solo requires Python >= 3.7")
 
 try:
     from solo import __author__, __email__
@@ -13,12 +13,12 @@ except ImportError:  # Deps not yet installed
 
 setup(
     name="solo-sc",
-    version="1.1",
+    version="1.2",
     description="Neural network classifiers for doublets",
     long_description=Path("README.md").read_text("utf-8"),
     long_description_content_type="text/markdown",
     url="http://github.com/calico/solo",
-    download_url="https://github.com/calico/solo/archive/1.0.tar.gz",
+    download_url="https://github.com/calico/solo/archive/1.2.tar.gz",
     author=__author__,
     author_email=__email__,
     license="Apache",
