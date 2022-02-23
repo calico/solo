@@ -123,6 +123,22 @@ def main():
         action="store_true",
         help="Get version of solo-sc",
     )
+    
+    parser.add_argument(
+        "--learning-rate-solotrain",
+        dest="lr_st",
+        default=1e-5,
+        type=int,
+        help="Get version of solo-sc",
+    )
+    parser.add_argument(
+        "--learning-rate-vae",
+        dest="lr_vae",
+        default=1e-5,
+        type=int,
+        help="Get version of solo-sc",
+    )
+    
     args = parser.parse_args()
 
     if args.version:
@@ -194,7 +210,7 @@ def main():
     batch_size = params.get("batch_size", 128)
     valid_pct = params.get("valid_pct", 0.1)
     check_val_every_n_epoch = params.get("check_val_every_n_epoch", 5)
-    learning_rate = params.get("learning_rate", 1e-3)
+    learning_rate = params.get("learning_rate", lr_st)
     stopping_params = {"patience": params.get("patience", 8), "min_delta": 0}
 
     # protect against single example batch
@@ -226,7 +242,7 @@ def main():
         plan_kwargs = {
             "reduce_lr_on_plateau": True,
             "lr_factor": 0.1,
-            "lr": 1e-2,
+            "lr": lr_vae,
             "lr_patience": 10,
             "lr_threshold": 0,
             "lr_min": 1e-4,
