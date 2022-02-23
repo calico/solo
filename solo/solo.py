@@ -129,14 +129,14 @@ def main():
         dest="lr_st",
         default=1e-5,
         type=int,
-        help="Get version of solo-sc",
+        help="Learning rate used for solo.train",
     )
     parser.add_argument(
         "--learning-rate-vae",
         dest="lr_vae",
         default=1e-5,
         type=int,
-        help="Get version of solo-sc",
+        help="Learning rate used for vae",
     )
     
     args = parser.parse_args()
