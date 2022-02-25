@@ -54,9 +54,9 @@ optional arguments:
                         (default: False)
   --version             Get version of solo-sc (default: False)
   --learning-rate-solotrain             
-                        Learning rate used for solo.train
+                        Learning rate used for solo.train (default: 1e-5)
   --learning-rate-vae             
-                        Learning rate used for vae
+                        Learning rate used for vae (default: 1e-5)
                         
 ```
 
