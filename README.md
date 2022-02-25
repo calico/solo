@@ -53,6 +53,11 @@ optional arguments:
   -recalibrate_scores   Recalibrate doublet scores (not recommended anymore)
                         (default: False)
   --version             Get version of solo-sc (default: False)
+  --learning-rate-solotrain             
+                        Learning rate used for solo.train
+  --learning-rate-vae             
+                        Learning rate used for vae
+                        
 ```
 
 Warning: If you are going directly from cellranger 10x output you may want to manually inspect your data prior to running solo.
