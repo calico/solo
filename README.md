@@ -21,7 +21,7 @@ usage: solo [-h] -j MODEL_JSON_FILE -d DATA_PATH
             [--set-reproducible-seed REPRODUCIBLE_SEED]
             [--doublet-depth DOUBLET_DEPTH] [-g] [-a] [-o OUT_DIR]
             [-r DOUBLET_RATIO] [-s SEED] [-e EXPECTED_NUMBER_OF_DOUBLETS] [-p]
-            [-recalibrate_scores] [--version]
+            [-recalibrate_scores] [--version] [--lr_st] [--lr_vae]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -53,9 +53,9 @@ optional arguments:
   -recalibrate_scores   Recalibrate doublet scores (not recommended anymore)
                         (default: False)
   --version             Get version of solo-sc (default: False)
-  --learning-rate-solotrain             
+  --lr_st            
                         Learning rate used for solo.train (default: 1e-5)
-  --learning-rate-vae             
+  --lr_vae             
                         Learning rate used for vae (default: 1e-5)
                         
 ```
@@ -71,7 +71,7 @@ model_json example:
   "cl_hidden": 128,
   "cl_layers": 1,
   "dropout_rate": 0.2,
-  "learning_rate": 1e-5,
+  "lr_st": 1e-5,
   "valid_pct": 0.10
 }
 ```
