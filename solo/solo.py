@@ -210,7 +210,7 @@ def main():
     batch_size = params.get("batch_size", 128)
     valid_pct = params.get("valid_pct", 0.1)
     check_val_every_n_epoch = params.get("check_val_every_n_epoch", 5)
-    learning_rate = params.get("learning_rate", lr_st)
+    learning_rate = params.get("learning_rate", args.lr_st)
     stopping_params = {"patience": params.get("patience", 8), "min_delta": 0}
 
     # protect against single example batch
@@ -242,7 +242,7 @@ def main():
         plan_kwargs = {
             "reduce_lr_on_plateau": True,
             "lr_factor": 0.1,
-            "lr": lr_vae,
+            "lr": args.lr_vae,
             "lr_patience": 10,
             "lr_threshold": 0,
             "lr_min": 1e-4,
