@@ -71,7 +71,7 @@ model_json example:
   "cl_hidden": 128,
   "cl_layers": 1,
   "dropout_rate": 0.2,
-  "lr_st": 1e-5,
+  "lr_st": 1e-3,
   "valid_pct": 0.10
 }
 ```
