@@ -15,7 +15,7 @@ Or install via pip
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
-### How to solo
+### ≈
 ```
 usage: solo [-h] -j MODEL_JSON_FILE -d DATA_PATH
             [--set-reproducible-seed REPRODUCIBLE_SEED]
@@ -54,9 +54,9 @@ optional arguments:
                         (default: False)
   --version             Get version of solo-sc (default: False)
   --lr_st            
-                        Learning rate used for solo.train (default: 1e-5)
+                        Learning rate used for solo.train (default: 1e-3)
   --lr_vae             
-                        Learning rate used for vae (default: 1e-5)
+                        Learning rate used for vae (default: 1e-3)
                         
 ```
 
