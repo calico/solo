@@ -74,6 +74,9 @@ model_json example:
   "lr_st": 1e-3,
   "valid_pct": 0.10
 }
+
+The suggested learning rates work best in most settings, but in case a ValueError occurs, you might consider changing the learning rates to 1e-5
+
 ```
 
 Outputs:
