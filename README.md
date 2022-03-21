@@ -15,13 +15,13 @@ Or install via pip
 
 If you don't have conda follow the instructions here: https://docs.conda.io/projects/conda/en/latest/user-guide/install/
 
-### How to solo
+### ≈
 ```
 usage: solo [-h] -j MODEL_JSON_FILE -d DATA_PATH
             [--set-reproducible-seed REPRODUCIBLE_SEED]
             [--doublet-depth DOUBLET_DEPTH] [-g] [-a] [-o OUT_DIR]
             [-r DOUBLET_RATIO] [-s SEED] [-e EXPECTED_NUMBER_OF_DOUBLETS] [-p]
-            [-recalibrate_scores] [--version]
+            [-recalibrate_scores] [--version] [--lr_st] [--lr_vae]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -53,6 +53,11 @@ optional arguments:
   -recalibrate_scores   Recalibrate doublet scores (not recommended anymore)
                         (default: False)
   --version             Get version of solo-sc (default: False)
+  --lr_st            
+                        Learning rate used for solo.train (default: 1e-3)
+  --lr_vae             
+                        Learning rate used for vae (default: 1e-3)
+                        
 ```
 
 Warning: If you are going directly from cellranger 10x output you may want to manually inspect your data prior to running solo.
@@ -66,9 +71,12 @@ model_json example:
   "cl_hidden": 128,
   "cl_layers": 1,
   "dropout_rate": 0.2,
-  "learning_rate": 0.001,
+  "lr_st": 1e-3,
   "valid_pct": 0.10
 }
+
+The suggested learning rates work best in most settings, but in case a ValueError occurs, you might consider changing the learning rates to 1e-5
+
 ```
 
 Outputs:
