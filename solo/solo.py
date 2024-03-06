@@ -12,10 +12,10 @@ from scipy.special import softmax
 from scanpy import read_10x_mtx
 
 import torch
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 import scvi
-from scvi.data import read_h5ad, read_loom, setup_anndata
+from scvi.data import read_h5ad, read_loom
 from scvi.model import SCVI
 from scvi.external import SOLO
 
@@ -221,7 +221,8 @@ def main():
     scvi.settings.batch_size = batch_size
     ##################################################
     # SCVI
-    setup_anndata(scvi_data, batch_key=batch_key)
+    #setup_anndata(scvi_data, batch_key=batch_key)
+    scvi.model.SCVI.setup_anndata(scvi_data, batch_key=batch_key)
     vae = SCVI(
         scvi_data,
         gene_likelihood="nb",
@@ -316,7 +317,10 @@ def main():
     # write predictions
     # softmax predictions
     softmax_predictions = softmax(logit_predictions, axis=1)
-    doublet_score = softmax_predictions.loc[:, "doublet"]
+    if logit_predictions.columns[0]=='doublet':
+        doublet_score = softmax_predictions[:, 0]
+    else:
+        doublet_score = softmax_predictions[:, 1]
 
     np.save(
         os.path.join(args.out_dir, "no_updates_softmax_scores.npy"),
@@ -415,11 +419,11 @@ def main():
     np.save(os.path.join(args.out_dir, "smoothed_preds.npy"), smoothed_preds)
 
     if args.anndata_output and data_ext == ".h5ad":
-        scvi_data.obs["is_doublet"] = is_solo_doublet[:num_cells].values.astype(bool)
-        scvi_data.obs["logit_scores"] = logit_doublet_score[:num_cells].values.astype(
+        scvi_data.obs["is_doublet"] = is_solo_doublet[:num_cells].astype(bool)
+        scvi_data.obs["logit_scores"] = logit_doublet_score[:num_cells].astype(
             float
         )
-        scvi_data.obs["softmax_scores"] = solo_scores[:num_cells].values.astype(float)
+        scvi_data.obs["softmax_scores"] = solo_scores[:num_cells].astype(float)
         scvi_data.write(os.path.join(args.out_dir, "soloed.h5ad"))
 
     if args.plot:
