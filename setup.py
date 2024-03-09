@@ -3,7 +3,7 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 if sys.version_info < (3,):
-    sys.exit("solo requires Python >= 3.7")
+    sys.exit("solo requires Python >= 3.12")
 
 try:
     from solo import __author__, __email__
@@ -22,7 +22,7 @@ setup(
     author=__author__,
     author_email=__email__,
     license="Apache",
-    python_requires=">=3.7",
+    python_requires=">=3.12",
     install_requires=[
         l.strip() for l in Path("requirements.txt").read_text("utf-8").splitlines()
     ],
