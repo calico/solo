@@ -1,6 +1,6 @@
 ConfigArgParse>=1.7,<2.0
 h5py>=3.10.0,<4.0
-leidenalg>0.10.2,<1.0
+leidenalg>=0.10.2,<1.0
 lightning>=2,<3.0
 lightning-utilities>=0.10.1,<1.0
 numba>=0.59.0,<1.0
